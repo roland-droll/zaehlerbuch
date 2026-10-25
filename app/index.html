@@ -46,11 +46,13 @@
     <div class="buehne" id="buehne">
       <video id="video" playsinline muted autoplay hidden></video>
       <canvas id="leinwand"></canvas>
+      <button class="auto-knopf" id="w-auto" type="button" aria-pressed="true">Automatik</button>
       <div class="buehne-hinweis" id="buehne-hinweis">Kamera wird gestartet …</div>
+      <button class="ausloeser" id="w-aufnehmen" type="button" aria-label="Aufnehmen"><span></span></button>
     </div>
 
     <div class="werkzeuge">
-      <button class="knopf primaer gross" id="w-aufnehmen" type="button">Aufnehmen</button>
+      <button class="knopf" id="w-ausrichten" type="button" hidden>Automatisch ausrichten</button>
       <button class="knopf" id="w-licht" type="button" hidden aria-pressed="false">Licht</button>
       <label class="knopf" id="w-foto-label" for="w-foto">Foto aufnehmen<input id="w-foto" type="file" accept="image/*" capture="environment" hidden></label>
       <label class="knopf" for="w-galerie">Aus Galerie<input id="w-galerie" type="file" accept="image/*" hidden></label>
@@ -61,7 +63,7 @@
         <button class="knopf" type="button" data-zoom="1" aria-label="Vergrößern">+</button>
       </span>
     </div>
-    <p class="hinweistext" id="a-anleitung">Halte das Handy so, dass die Zählerrollen genau im Rahmen sitzen, je Rolle ein Feld. Den Rahmen kannst du verschieben und an der Ecke größer ziehen.</p>
+    <p class="hinweistext" id="a-anleitung">Die Automatik sucht die Ziffernreihe und legt den Rahmen darauf. Halte das Handy ruhig und gerade vor das Zählwerk und tippe auf den runden Auslöser. Sitzt der Rahmen falsch, kannst du ihn verschieben und an der Ecke größer ziehen.</p>
 
     <details class="panel" id="schablone">
       <summary><b>Schablone</b> <span class="hinweistext" id="s-zusammenfassung"></span></summary>

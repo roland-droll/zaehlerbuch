@@ -1,9 +1,9 @@
 /* Service Worker: hält alle Programmdateien und Modelle im Cache, damit das Zählerbuch ohne Netz startet.
    Bei jeder Änderung an den Dateien STAND hochzählen, sonst bekommen installierte Apps die neue Fassung nicht. */
-const STAND = "zaehlerbuch-1";
+const STAND = "zaehlerbuch-2";
 const DATEIEN = [
   "./", "index.html", "app.css", "manifest.webmanifest",
-  "js/app.js", "js/netz.js", "js/erkenner.js",
+  "js/app.js", "js/netz.js", "js/suche.js", "js/erkenner.js",
   "modelle/ziffer.json", "modelle/ziffer.bin", "modelle/zeiger.json", "modelle/zeiger.bin", "modelle/LIZENZ-AI-on-the-edge.md",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png",
 ];

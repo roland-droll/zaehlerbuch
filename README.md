@@ -9,17 +9,21 @@ Wasseruhr Kühlwasser, PV-Stromzähler (Ferraris). Weitere kommen über „+ Zä
 ## So wird abgelesen
 
 1. Zähler wählen, „Ablesen“ tippen. Die Kamera zeigt einen weißen Rahmen mit einem Feld je Rolle.
-2. **Beim ersten Mal die Schablone einstellen** (Feld „Schablone“ klappt dann von selbst auf):
-   - Anzahl schwarzer Rollen (ganze m³ bzw. kWh) und roter Rollen (Nachkommastellen).
-   - Hat die Wasseruhr rote Zeigerrädchen (×0,1 ×0,01 …), die Zahl der Zeiger einstellen und die gelben Kreise
-     auf die Rädchen ziehen. Am gelben Punkt am Kreisrand lässt sich die Größe ändern.
-   - Rahmen verschieben (in den Rahmen tippen und ziehen), Größe an der weißen Ecke unten rechts ziehen, bei
-     aufgeklappter Schablone ändert die Ecke auch die Höhe. Für schief montierte Zähler gibt es den Regler „Drehung“.
-3. Handy so halten, dass die Rollen genau in den Feldern sitzen, dann **Aufnehmen**.
-4. Über jedem Feld steht die erkannte Ziffer, darunter die Ausschnitte. Orange markierte Stellen sind unsicher.
+2. **Automatik** (grüner Knopf oben links im Kamerabild): Die App sucht im Live-Bild die Reihe der Zählerrollen
+   (gleich große Ziffern in gleichem Abstand nebeneinander, schwarze und rote Rollen) und legt den Rahmen darauf,
+   mit passender Größe, Höhe und Schräglage. Beim ersten Ablesen eines Zählers zählt sie auch die Rollen und
+   erkennt rote Nachkommarollen an der Farbe. Ist eine Schablone gespeichert, bleibt deren Rollenzahl fest und nur
+   Lage und Größe folgen. Wer den Rahmen von Hand zieht, schaltet die Automatik für diese Aufnahme aus.
+3. Handy ruhig und gerade vor das Zählwerk halten, bis „Zählwerk erkannt“ erscheint, dann den **runden Auslöser**
+   unten im Kamerabild tippen. Im Standbild sucht die App noch einmal genauer und lässt bei mehreren Möglichkeiten
+   (etwa Zählwerk oder aufgedruckte Seriennummer) das Ziffernmodell entscheiden. „Automatisch ausrichten“ wiederholt das.
+4. **Zeigerrädchen** (×0,1 ×0,01 … auf Wasseruhren) findet die Automatik nicht. Einmal je Zähler unter „Schablone“
+   die Zahl der Zeiger einstellen und die gelben Kreise auf die Rädchen ziehen (Größe am gelben Punkt am Kreisrand);
+   danach wandern sie mit dem Rahmen mit. Dort lassen sich auch Rollenzahl, Rahmenhöhe und Drehung von Hand einstellen.
+5. Über jedem Feld steht die erkannte Ziffer, darunter die Ausschnitte. Orange markierte Stellen sind unsicher.
    Sitzt der Rahmen nicht ganz, im Standbild nachziehen (zwei Finger oder „+“ zum Vergrößern); die Erkennung
    rechnet sofort neu.
-5. Stand prüfen, notfalls von Hand korrigieren, **Speichern**. Das Foto bleibt als Beleg, die Schablone wird für
+6. Stand prüfen, notfalls von Hand korrigieren, **Speichern**. Das Foto bleibt als Beleg, die Schablone wird für
    das nächste Mal gemerkt.
 
 Die App warnt, wenn der Stand kleiner ist als zuletzt oder der Verbrauch ungewöhnlich hoch ist (mehr als das
@@ -78,6 +82,7 @@ app/                 die App (das wird ausgeliefert)
   index.html, app.css
   js/app.js          Bedienung, Kamera, Schablone, Speicher, Verlauf
   js/netz.js         Rechenwerk der neuronalen Netze und Zusammensetzen der Stellen (Überträge)
+  js/suche.js        Automatik: findet die Rollenreihe im Bild (adaptive Schwelle, Ziffernketten)
   js/erkenner.js     Worker, der die Ausschnitte rechnet
   modelle/           Ziffern- und Zeigermodell im eigenen Format (.json + .bin) mit Lizenz
   sw.js, manifest.webmanifest, icons/

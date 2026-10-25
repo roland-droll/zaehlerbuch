@@ -391,6 +391,8 @@ const leinwand = $("leinwand"), video = $("video"), buehne = $("buehne");
 const A = {
   zid: null, schab: null, modus: "leer", bild: null, ansicht: { zoom: 1, ox: 0, oy: 0 },
   stream: null, licht: false, ergebnis: null, handEingabe: false, fotoQuelle: null, auftrag: 0,
+  // Automatik: Rollenreihe suchen und Rahmen darauf legen
+  auto: true, zaehlFest: false, sucheOffen: false, letzterTreffer: null, stabil: 0, zaehlVerlauf: [],
 };
 
 function standardSchablone(z) {
@@ -422,7 +424,9 @@ function zaehlerWaehlen() {
   const z = S.zaehler.get($("a-zaehler").value);
   A.zid = z.id;
   A.schab = klon(z.schablone || standardSchablone(z));
-  $("schablone").open = !z.schablone;
+  A.zaehlFest = !!z.schablone;   // gespeicherte Schablone: Rollenzahl steht fest, nur Lage und Größe folgen
+  A.auto = true; autoKnopf();
+  $("schablone").open = false;
   schabloneAnzeigen();
   neueAufnahme();
 }
@@ -432,7 +436,8 @@ function neueAufnahme() {
   A.bild = null; A.ergebnis = null; A.handEingabe = false; A.fotoQuelle = null; A.ansicht = { zoom: 1, ox: 0, oy: 0 };
   $("erkannt").hidden = true;
   $("a-stand").value = ""; $("a-notiz").value = ""; $("a-zeit").value = lokalFeld(Date.now());
-  $("w-neu").hidden = true; $("w-zoom").hidden = true;
+  $("w-neu").hidden = true; $("w-zoom").hidden = true; $("w-ausrichten").hidden = true;
+  A.letzterTreffer = null; A.stabil = 0; A.zaehlVerlauf = [];
   standHinweis(); pruefeEingabe();
   kameraStart();
 }
@@ -443,7 +448,7 @@ async function kameraStart() {
   kameraStopp();
   A.modus = "leer";
   buehnenHinweis("Kamera wird gestartet …");
-  $("w-aufnehmen").hidden = true;
+  $("w-aufnehmen").hidden = false;   // der Auslöser ist immer da: ohne Live-Bild öffnet er die Kamera-App
   zeichneBuehne();
   if (!navigator.mediaDevices?.getUserMedia) {
     kameraFehlt(window.isSecureContext ? "Dieses Gerät bietet keine Live-Kamera." : "Live-Kamera nur über HTTPS oder als installierte App.");
@@ -454,22 +459,22 @@ async function kameraStart() {
     if (S.ansicht !== "ablesen" || A.bild) { stream.getTracks().forEach(t => t.stop()); return; }
     A.stream = stream;
     video.srcObject = stream; video.hidden = false;
-    await video.play().catch(() => {});
+    video.play().catch(() => {});   // nicht abwarten: manche Handys melden das Abspielen nie
     A.modus = "live";
-    $("w-aufnehmen").hidden = false; $("w-foto-label").hidden = true;
+    $("w-foto-label").hidden = true;
     const spur = stream.getVideoTracks()[0], kann = spur.getCapabilities?.() || {};
     $("w-licht").hidden = !kann.torch;
     if (kann.focusMode?.includes?.("continuous")) spur.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {});
-    buehnenHinweis("Rollen in den Rahmen bringen, je Rolle ein Feld. Dann „Aufnehmen“.");
+    buehnenHinweis(A.auto ? "Zählwerk wird gesucht …" : "Rollen in den Rahmen bringen, je Rolle ein Feld.");
     zeichneBuehne();
   } catch (e) {
-    kameraFehlt(e.name === "NotAllowedError" ? "Kamerazugriff wurde nicht erlaubt. Du kannst stattdessen ein Foto aufnehmen." : "Die Kamera ließ sich nicht starten. Nimm stattdessen ein Foto auf.");
+    kameraFehlt(e.name === "NotAllowedError" ? "Kamerazugriff wurde nicht erlaubt." : "Die Kamera ließ sich nicht starten.");
   }
 }
 function kameraFehlt(text) {
   A.modus = "leer";
-  $("w-aufnehmen").hidden = true; $("w-foto-label").hidden = false; $("w-licht").hidden = true;
-  buehnenHinweis(text + " Danach den Rahmen auf die Rollen schieben.");
+  $("w-foto-label").hidden = false; $("w-licht").hidden = true;
+  buehnenHinweis(text + " Der Auslöser öffnet die Kamera-App, danach wird die Ziffernreihe im Foto gesucht.");
   zeichneBuehne();
 }
 function kameraStopp() {
@@ -491,13 +496,19 @@ document.addEventListener("visibilitychange", () => {
 });
 function buehnenHinweis(t) { const el = $("buehne-hinweis"); el.textContent = t || ""; el.hidden = !t; }
 
-$("w-aufnehmen").addEventListener("click", () => {
-  if (A.modus !== "live" || !video.videoWidth) return;
-  // genau den sichtbaren Teil des Videos übernehmen (object-fit: cover), damit die Schablone passt
+// genau den sichtbaren Teil des Videos (object-fit: cover), damit die Schablone passt; maxSeite verkleinert
+function videoBild(maxSeite) {
   const bw = buehne.clientWidth, bh = buehne.clientHeight, vw = video.videoWidth, vh = video.videoHeight;
-  const f = Math.max(bw / vw, bh / vh), sw = bw / f, sh = bh / f;
-  const c = h("canvas"); c.width = Math.round(sw); c.height = Math.round(sh);
-  c.getContext("2d").drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+  const f = Math.max(bw / vw, bh / vh), sw = bw / f, sh = bh / f, k = maxSeite ? Math.min(1, maxSeite / Math.max(sw, sh)) : 1;
+  const c = h("canvas"); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+  c.getContext("2d", { willReadFrequently: !!maxSeite }).drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, c.width, c.height);
+  return c;
+}
+$("w-aufnehmen").addEventListener("click", () => {
+  if (A.modus === "bild") return;
+  if (A.modus !== "live") { $("w-foto").click(); return; }
+  if (!video.videoWidth) { meldung("Die Kamera startet noch, gleich noch einmal tippen."); return; }
+  const c = videoBild();
   kameraStopp();
   A.fotoQuelle = "kamera";
   bildUebernehmen(c);
@@ -533,12 +544,91 @@ function bildUebernehmen(canvas) {
   }
   A.bild = { quelle: canvas, stufen, W: canvas.width, H: canvas.height };
   A.modus = "bild"; A.ansicht = { zoom: 1, ox: 0, oy: 0 }; A.handEingabe = false;
-  $("w-aufnehmen").hidden = true; $("w-neu").hidden = false; $("w-zoom").hidden = false;
+  $("w-aufnehmen").hidden = true; $("w-neu").hidden = false; $("w-zoom").hidden = false; $("w-ausrichten").hidden = false;
   buehnenHinweis("");
   zeichneBuehne();
-  erkennen();
+  if (A.auto) standbildSuchen(); else erkennen();
 }
 $("w-neu").addEventListener("click", neueAufnahme);
+
+/* ---------- Automatik: Rollenreihe finden ---------- */
+function autoKnopf() {
+  $("w-auto").setAttribute("aria-pressed", String(A.auto));
+  $("w-auto").textContent = A.auto ? "Automatik" : "Automatik aus";
+}
+$("w-auto").addEventListener("click", () => {
+  A.auto = !A.auto; autoKnopf();
+  A.letzterTreffer = null; A.stabil = 0;
+  if (A.modus === "live") buehnenHinweis(A.auto ? "Zählwerk wird gesucht …" : "Rollen in den Rahmen bringen, je Rolle ein Feld.");
+  if (A.auto && A.modus === "bild") standbildSuchen();
+});
+$("w-ausrichten").addEventListener("click", () => { A.auto = true; autoKnopf(); standbildSuchen(); });
+
+const erwarteteRollen = () => (A.zaehlFest ? A.schab.schwarz + A.schab.rot : null);
+let sucheNr = 0;
+function suchen(canvas, pruefen) {
+  const g = canvas.getContext("2d", { willReadFrequently: true });
+  const daten = g.getImageData(0, 0, canvas.width, canvas.height);
+  const id = -(++sucheNr);   // eigene (negative) Nummern, damit laufende Erkennungen gültig bleiben
+  return new Promise(ok => {
+    offeneAuftraege.set(id, ok);
+    erkennerHolen().postMessage({ id, typ: "suchen", rgba: daten.data, W: canvas.width, H: canvas.height, erwartet: erwarteteRollen(), pruefen }, [daten.data.buffer]);
+  });
+}
+// Treffer auf die Schablone übertragen; live erst nach zwei passenden Funden hintereinander und geglättet
+function trefferUebernehmen(t, live) {
+  const L = A.schab.lage;
+  if (live) {
+    const v = A.letzterTreffer;
+    A.stabil = v && Math.abs(v.cx - t.cx) < 0.06 && Math.abs(v.cy - t.cy) < 0.06 && Math.abs(t.bw / v.bw - 1) < 0.2 ? A.stabil + 1 : 0;
+    A.letzterTreffer = t;
+    if (A.stabil < 1) return false;
+  }
+  const a = live ? 0.55 : 1;
+  L.cx += a * (t.cx - L.cx); L.cy += a * (t.cy - L.cy); L.bw += a * (t.bw - L.bw);
+  L.winkel = Math.round((L.winkel + a * (t.winkel - L.winkel)) * 2) / 2;
+  A.schab.hoehe += a * (t.hoehe - A.schab.hoehe);
+  if (!A.zaehlFest) {
+    // Rollenzahl aus den letzten Funden (häufigster Wert), damit sie nicht springt
+    A.zaehlVerlauf.push(t.n + "/" + t.rot);
+    if (A.zaehlVerlauf.length > 6) A.zaehlVerlauf.shift();
+    const zaehl = {};
+    for (const x of (live ? A.zaehlVerlauf : [t.n + "/" + t.rot])) zaehl[x] = (zaehl[x] || 0) + 1;
+    const [n, rot] = Object.entries(zaehl).sort((x, y) => y[1] - x[1])[0][0].split("/").map(Number);
+    A.schab.rot = Math.min(rot, n - 1); A.schab.schwarz = n - A.schab.rot;
+  }
+  schabloneAnzeigen();
+  zeichneBuehne();
+  return true;
+}
+let sucheUhr = null;
+function liveSucheStarten() {
+  clearInterval(sucheUhr);
+  sucheUhr = setInterval(async () => {
+    if (S.ansicht !== "ablesen" || A.modus !== "live" || !A.auto || A.sucheOffen || zug || !video.videoWidth || document.hidden) return;
+    A.sucheOffen = true;
+    try {
+      const antwort = await suchen(videoBild(640), false);
+      if (A.modus !== "live" || !A.auto) return;
+      const t = antwort.treffer;
+      if (t && trefferUebernehmen(t, true)) buehnenHinweis(`Zählwerk erkannt: ${A.schab.schwarz + A.schab.rot} Rollen. Ruhig halten und auslösen.`);
+      else if (!t) buehnenHinweis("Zählwerk wird gesucht … näher heran, gerade von vorn, ohne Spiegelung.");
+    } finally { A.sucheOffen = false; }
+  }, 450);
+}
+liveSucheStarten();
+async function standbildSuchen() {
+  if (!A.bild) return;
+  $("erkannt").hidden = false; $("e-status").textContent = "sucht die Ziffernreihe …";
+  const q = A.bild.quelle, f = Math.min(1, 1000 / Math.max(q.width, q.height));
+  const c = h("canvas"); c.width = Math.round(q.width * f); c.height = Math.round(q.height * f);
+  const g = c.getContext("2d", { willReadFrequently: true }); g.imageSmoothingQuality = "high"; g.drawImage(q, 0, 0, c.width, c.height);
+  const antwort = await suchen(c, true);
+  if (!A.bild) return;
+  if (antwort.treffer) trefferUebernehmen(antwort.treffer, false);
+  else meldung("Keine Ziffernreihe gefunden. Rahmen bitte von Hand auf die Rollen ziehen.");
+  erkennen();
+}
 
 /* ---------- Bühne: Abbildung Bild ↔ Bildschirm ---------- */
 function bildMasse() {
@@ -685,6 +775,11 @@ leinwand.addEventListener("pointermove", e => {
   }
   zug.letzter = q;
   if (zug.art !== "schwenken") zug.geaendert = true;
+  if (A.modus === "live" && A.auto && (zug.art === "verschieben" || zug.art === "groesse")) {
+    // wer den Rahmen selbst legt, will keine Automatik, die ihn wieder wegzieht
+    A.auto = false; autoKnopf();
+    buehnenHinweis("Automatik aus: Rahmen von Hand. Oben links wieder einschalten.");
+  }
   schabloneAnzeigen(true);
   zeichneBuehne();
 });
@@ -730,8 +825,8 @@ function schabloneAnzeigen(nurWerte) {
 $("schablone").addEventListener("click", e => {
   const k = e.target.closest("[data-stufe]"); if (!k) return;
   const [feld, d] = k.dataset.stufe.split(":"), sb = A.schab, schritt = Number(d);
-  if (feld === "schwarz") sb.schwarz = begrenze(sb.schwarz + schritt, 1, 9);
-  if (feld === "rot") sb.rot = begrenze(sb.rot + schritt, 0, 4);
+  if (feld === "schwarz") { sb.schwarz = begrenze(sb.schwarz + schritt, 1, 9); A.zaehlFest = true; }
+  if (feld === "rot") { sb.rot = begrenze(sb.rot + schritt, 0, 4); A.zaehlFest = true; }
   if (feld === "zeiger") {
     if (schritt > 0 && sb.zeiger.length < 4) { const i = sb.zeiger.length; sb.zeiger.push({ x: 0.3 - 0.2 * i, y: sb.hoehe / 2 + 0.2, r: 0.08 }); }
     if (schritt < 0) sb.zeiger.pop();
