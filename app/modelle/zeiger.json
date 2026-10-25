@@ -1,0 +1,182 @@
+{
+ "quelle": "ana-cont_1500_s2_q.tflite",
+ "eingang": [
+  32,
+  32,
+  3
+ ],
+ "ausgang": [
+  2
+ ],
+ "schichten": [
+  {
+   "typ": "mul",
+   "w": [
+    0,
+    3
+   ],
+   "akt": null
+  },
+  {
+   "typ": "add",
+   "w": [
+    3,
+    3
+   ],
+   "akt": null
+  },
+  {
+   "typ": "conv",
+   "form": [
+    32,
+    5,
+    5,
+    3
+   ],
+   "w": [
+    6,
+    2400
+   ],
+   "b": [
+    2406,
+    32
+   ],
+   "schritt": [
+    1,
+    1
+   ],
+   "rand": "same",
+   "akt": "relu"
+  },
+  {
+   "typ": "maxpool",
+   "fenster": [
+    4,
+    4
+   ],
+   "schritt": [
+    4,
+    4
+   ],
+   "rand": "valid"
+  },
+  {
+   "typ": "conv",
+   "form": [
+    16,
+    5,
+    5,
+    32
+   ],
+   "w": [
+    2438,
+    12800
+   ],
+   "b": [
+    15238,
+    16
+   ],
+   "schritt": [
+    1,
+    1
+   ],
+   "rand": "same",
+   "akt": "relu"
+  },
+  {
+   "typ": "maxpool",
+   "fenster": [
+    2,
+    2
+   ],
+   "schritt": [
+    2,
+    2
+   ],
+   "rand": "valid"
+  },
+  {
+   "typ": "conv",
+   "form": [
+    32,
+    3,
+    3,
+    16
+   ],
+   "w": [
+    15254,
+    4608
+   ],
+   "b": [
+    19862,
+    32
+   ],
+   "schritt": [
+    1,
+    1
+   ],
+   "rand": "same",
+   "akt": "relu"
+  },
+  {
+   "typ": "maxpool",
+   "fenster": [
+    2,
+    2
+   ],
+   "schritt": [
+    2,
+    2
+   ],
+   "rand": "valid"
+  },
+  {
+   "typ": "dense",
+   "form": [
+    128,
+    128
+   ],
+   "w": [
+    19894,
+    16384
+   ],
+   "b": [
+    36278,
+    128
+   ],
+   "akt": "relu"
+  },
+  {
+   "typ": "dense",
+   "form": [
+    64,
+    128
+   ],
+   "w": [
+    36406,
+    8192
+   ],
+   "b": [
+    44598,
+    64
+   ],
+   "akt": "relu"
+  },
+  {
+   "typ": "dense",
+   "form": [
+    2,
+    64
+   ],
+   "w": [
+    44662,
+    128
+   ],
+   "b": [
+    44790,
+    2
+   ],
+   "akt": null
+  }
+ ]
+}

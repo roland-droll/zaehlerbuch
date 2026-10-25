@@ -1,0 +1,254 @@
+{
+ "quelle": "dig-cont_0900_s3_q.tflite",
+ "eingang": [
+  32,
+  20,
+  3
+ ],
+ "ausgang": [
+  10
+ ],
+ "schichten": [
+  {
+   "typ": "mul",
+   "w": [
+    0,
+    3
+   ],
+   "akt": null
+  },
+  {
+   "typ": "add",
+   "w": [
+    3,
+    3
+   ],
+   "akt": null
+  },
+  {
+   "typ": "conv",
+   "form": [
+    64,
+    3,
+    3,
+    3
+   ],
+   "w": [
+    6,
+    1728
+   ],
+   "b": [
+    1734,
+    64
+   ],
+   "schritt": [
+    1,
+    1
+   ],
+   "rand": "same",
+   "akt": null
+  },
+  {
+   "typ": "leaky",
+   "alpha": 0.30000001192092896
+  },
+  {
+   "typ": "mul",
+   "w": [
+    1798,
+    64
+   ],
+   "akt": null
+  },
+  {
+   "typ": "add",
+   "w": [
+    1862,
+    64
+   ],
+   "akt": null
+  },
+  {
+   "typ": "maxpool",
+   "fenster": [
+    2,
+    2
+   ],
+   "schritt": [
+    2,
+    2
+   ],
+   "rand": "valid"
+  },
+  {
+   "typ": "conv",
+   "form": [
+    128,
+    3,
+    3,
+    64
+   ],
+   "w": [
+    1926,
+    73728
+   ],
+   "b": [
+    75654,
+    128
+   ],
+   "schritt": [
+    1,
+    1
+   ],
+   "rand": "same",
+   "akt": null
+  },
+  {
+   "typ": "leaky",
+   "alpha": 0.30000001192092896
+  },
+  {
+   "typ": "mul",
+   "w": [
+    75782,
+    128
+   ],
+   "akt": null
+  },
+  {
+   "typ": "add",
+   "w": [
+    75910,
+    128
+   ],
+   "akt": null
+  },
+  {
+   "typ": "maxpool",
+   "fenster": [
+    2,
+    2
+   ],
+   "schritt": [
+    2,
+    2
+   ],
+   "rand": "valid"
+  },
+  {
+   "typ": "conv",
+   "form": [
+    64,
+    3,
+    3,
+    128
+   ],
+   "w": [
+    76038,
+    73728
+   ],
+   "b": [
+    149766,
+    64
+   ],
+   "schritt": [
+    1,
+    1
+   ],
+   "rand": "same",
+   "akt": null
+  },
+  {
+   "typ": "leaky",
+   "alpha": 0.30000001192092896
+  },
+  {
+   "typ": "mul",
+   "w": [
+    149830,
+    64
+   ],
+   "akt": null
+  },
+  {
+   "typ": "add",
+   "w": [
+    149894,
+    64
+   ],
+   "akt": null
+  },
+  {
+   "typ": "maxpool",
+   "fenster": [
+    2,
+    2
+   ],
+   "schritt": [
+    2,
+    2
+   ],
+   "rand": "valid"
+  },
+  {
+   "typ": "dense",
+   "form": [
+    256,
+    512
+   ],
+   "w": [
+    149958,
+    131072
+   ],
+   "b": [
+    281030,
+    256
+   ],
+   "akt": null
+  },
+  {
+   "typ": "leaky",
+   "alpha": 0.30000001192092896
+  },
+  {
+   "typ": "dense",
+   "form": [
+    64,
+    256
+   ],
+   "w": [
+    281286,
+    16384
+   ],
+   "b": [
+    297670,
+    64
+   ],
+   "akt": null
+  },
+  {
+   "typ": "leaky",
+   "alpha": 0.30000001192092896
+  },
+  {
+   "typ": "dense",
+   "form": [
+    10,
+    64
+   ],
+   "w": [
+    297734,
+    640
+   ],
+   "b": [
+    298374,
+    10
+   ],
+   "akt": null
+  },
+  {
+   "typ": "softmax",
+   "beta": 1.0
+  }
+ ]
+}

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<title>Zählerbuch – Rechenwerk prüfen</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;margin:24px}pre{background:#f3f3f3;padding:12px}</style>
+<h1>Rechenwerk prüfen</h1>
+<p>Vergleicht die JavaScript-Fassung (app/js/netz.js) mit der numpy-Referenz (werkzeug/vorwaerts.py) an den Testvektoren
+aus dem Referenzbild. Server im Projektordner starten: <code>python -m http.server 8765</code>, dann
+<code>http://localhost:8765/werkzeug/pruefen.html</code> öffnen.</p>
+<pre id="aus">läuft …</pre>
+<script src="../app/js/netz.js"></script>
+<script>
+(async () => {
+  const aus = document.getElementById("aus"), zeilen = [];
+  try {
+    const [ziffer, zeiger, tv] = await Promise.all([
+      Netz.ladeNetz("../app/modelle/ziffer"), Netz.ladeNetz("../app/modelle/zeiger"),
+      fetch("testvektoren.json").then(r => r.json())]);
+    let maxAbw = 0;
+    const t0 = performance.now();
+    const rollen = tv.ziffer.map(v => {
+      const p = ziffer.rechne(v.eingang);
+      p.forEach((x, i) => maxAbw = Math.max(maxAbw, Math.abs(x - v.ausgang[i])));
+      return Netz.zifferWert(p);
+    });
+    const t1 = performance.now();
+    const zg = tv.zeiger.map(v => {
+      const f = zeiger.rechne(v.eingang);
+      f.forEach((x, i) => maxAbw = Math.max(maxAbw, Math.abs(x - v.ausgang[i])));
+      return Netz.zeigerWert(f);
+    });
+    const t2 = performance.now();
+    const z = Netz.zusammensetzen(rollen, zg, 0);
+    zeilen.push("Rollen: " + rollen.map(r => r.wert.toFixed(2) + " (" + r.guete.toFixed(2) + ")").join("  "));
+    zeilen.push("Zeiger: " + zg.map(r => r.wert.toFixed(2)).join("  "));
+    zeilen.push("größte Abweichung zur numpy-Referenz: " + maxAbw.toExponential(2));
+    zeilen.push("Stand: " + z.text + (z.text === "00016,3139" ? "  ✓ wie erwartet" : "  ✗ erwartet 00016,3139"));
+    zeilen.push(`Rechenzeit: ${((t1 - t0) / rollen.length).toFixed(1)} ms je Rolle, ${((t2 - t1) / zg.length).toFixed(1)} ms je Zeiger`);
+    // Übertragsfälle der Zusammensetzung
+    const R = (...w) => w.map(wert => ({ wert, guete: 1 }));
+    const fall = (name, r, zz, rot, soll) => {
+      const t = Netz.zusammensetzen(R(...r), R(...zz), rot).text;
+      zeilen.push(`${t === soll ? "✓" : "✗"} ${name}: ${t} (soll ${soll})`);
+    };
+    fall("Rolle halb gedreht, untere kurz vor 0", [3.5, 9.5], [], 0, "39");
+    fall("Rolle nachlaufend, untere gerade über 0", [3.9, 0.3], [], 0, "40");
+    fall("0 als 9,98 gelesen", [9.98, 9.99, 1.0], [], 0, "001");
+    fall("Nullen als 9,9 und 9,8 gelesen (Referenzbild)", [9.9, 9.8, 9.99, 1.0, 6.0], [3.16, 1.15, 3.81, 9.25], 0, "00016,3139");
+    fall("obere Rolle fast weiter, untere 9 noch vor Übertrag", [3.97, 9.6, 9.6], [], 0, "399");
+    fall("springende Rolle über Zeiger bei 9,2", [4.2], [9.2, 2.0], 0, "4,92");
+    fall("stetige Rolle über Zeiger bei 5", [4.5], [5.0], 0, "4,5");
+    fall("Zeigerkette", [], [3.16, 1.15, 3.81, 9.25], 0, "0,3139");
+    fall("rote Nachkommarollen", [1, 2, 3, 4, 5.0, 6.0, 7.2], [], 2, "12345,67");
+  } catch (e) { zeilen.push("Fehler: " + e.message); }
+  aus.textContent = zeilen.join("\n");
+})();
+</script>
+</html>

@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Zählerbuch</title>
+<meta name="description" content="Wasseruhren und Ferraris-Stromzähler mit der Handykamera ablesen – offline, alles bleibt auf dem Gerät.">
+<meta name="theme-color" content="#1c5b84" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1214" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zählerbuch">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <header class="kopf">
+    <div>
+      <h1>Zählerbuch</h1>
+      <p id="untertitel">Wasser und Strom ablesen, offline auf dem Handy</p>
+    </div>
+    <div class="knopfreihe">
+      <button class="knopf" id="k-daten" type="button">Daten</button>
+      <button class="knopf primaer" id="k-neu" type="button">+ Zähler</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner warn" hidden></div>
+
+  <!-- Übersicht -->
+  <section id="v-liste" class="ansicht">
+    <div id="liste" class="liste"><p class="hinweistext">Zähler werden geladen …</p></div>
+  </section>
+
+  <!-- Ablesen -->
+  <section id="v-ablesen" class="ansicht" hidden>
+    <div class="zeile">
+      <button class="knopf leise" type="button" data-zurueck>← Übersicht</button>
+      <select id="a-zaehler" aria-label="Zähler"></select>
+    </div>
+
+    <div class="buehne" id="buehne">
+      <video id="video" playsinline muted autoplay hidden></video>
+      <canvas id="leinwand"></canvas>
+      <div class="buehne-hinweis" id="buehne-hinweis">Kamera wird gestartet …</div>
+    </div>
+
+    <div class="werkzeuge">
+      <button class="knopf primaer gross" id="w-aufnehmen" type="button">Aufnehmen</button>
+      <button class="knopf" id="w-licht" type="button" hidden aria-pressed="false">Licht</button>
+      <label class="knopf" id="w-foto-label" for="w-foto">Foto aufnehmen<input id="w-foto" type="file" accept="image/*" capture="environment" hidden></label>
+      <label class="knopf" for="w-galerie">Aus Galerie<input id="w-galerie" type="file" accept="image/*" hidden></label>
+      <button class="knopf" id="w-neu" type="button" hidden>Neu aufnehmen</button>
+      <span class="zoom" id="w-zoom" hidden>
+        <button class="knopf" type="button" data-zoom="-1" aria-label="Verkleinern">−</button>
+        <button class="knopf" type="button" data-zoom="0">Ganz</button>
+        <button class="knopf" type="button" data-zoom="1" aria-label="Vergrößern">+</button>
+      </span>
+    </div>
+    <p class="hinweistext" id="a-anleitung">Halte das Handy so, dass die Zählerrollen genau im Rahmen sitzen, je Rolle ein Feld. Den Rahmen kannst du verschieben und an der Ecke größer ziehen.</p>
+
+    <details class="panel" id="schablone">
+      <summary><b>Schablone</b> <span class="hinweistext" id="s-zusammenfassung"></span></summary>
+      <div class="raster">
+        <div class="feld">
+          <span class="lbl">Schwarze Rollen</span>
+          <div class="stufer"><button class="knopf" type="button" data-stufe="schwarz:-1">−</button><b id="s-schwarz">5</b><button class="knopf" type="button" data-stufe="schwarz:1">+</button></div>
+          <small>ganze m³ bzw. kWh</small>
+        </div>
+        <div class="feld">
+          <span class="lbl">Rote Rollen</span>
+          <div class="stufer"><button class="knopf" type="button" data-stufe="rot:-1">−</button><b id="s-rot">3</b><button class="knopf" type="button" data-stufe="rot:1">+</button></div>
+          <small>Nachkommastellen auf Rollen</small>
+        </div>
+        <div class="feld">
+          <span class="lbl">Zeigerrädchen</span>
+          <div class="stufer"><button class="knopf" type="button" data-stufe="zeiger:-1">−</button><b id="s-zeiger">0</b><button class="knopf" type="button" data-stufe="zeiger:1">+</button></div>
+          <small>rote Zeiger ×0,1 ×0,01 …, Kreise aufs Bild ziehen</small>
+        </div>
+        <div class="feld">
+          <label for="s-hoehe">Rahmenhöhe</label>
+          <input id="s-hoehe" type="range" min="0.06" max="0.7" step="0.005">
+        </div>
+        <div class="feld">
+          <label for="s-winkel">Drehung <span id="s-winkel-wert">0°</span></label>
+          <input id="s-winkel" type="range" min="-20" max="20" step="0.5" value="0">
+        </div>
+      </div>
+      <p class="hinweistext">Die Schablone wird mit jeder gespeicherten Ablesung für diesen Zähler gemerkt.</p>
+    </details>
+
+    <div class="panel" id="erkannt" hidden>
+      <div class="zeile zwischen"><b>Erkannt</b><span class="hinweistext" id="e-status"></span></div>
+      <div class="zellen" id="e-zellen"></div>
+      <div class="zaehlwerk" id="e-zaehlwerk"></div>
+    </div>
+
+    <div class="panel">
+      <div class="raster">
+        <div class="feld">
+          <label for="a-stand">Zählerstand</label>
+          <input id="a-stand" class="gross" inputmode="decimal" autocomplete="off" placeholder="z. B. 1234,567">
+          <small id="a-hinweis"></small>
+        </div>
+        <div class="feld">
+          <label for="a-zeit">Abgelesen am</label>
+          <input id="a-zeit" type="datetime-local">
+        </div>
+      </div>
+      <div class="feld">
+        <label for="a-notiz">Notiz</label>
+        <input id="a-notiz" autocomplete="off" placeholder="optional">
+      </div>
+      <ul class="warnungen" id="a-warnungen" hidden></ul>
+      <div class="knopfreihe">
+        <button class="knopf primaer" id="a-speichern" type="button">Speichern</button>
+        <button class="knopf leise" type="button" data-zurueck>Abbrechen</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Verlauf -->
+  <section id="v-detail" class="ansicht" hidden></section>
+
+  <!-- Zähler anlegen / bearbeiten -->
+  <section id="v-zaehler" class="ansicht" hidden>
+    <button class="knopf leise zurueck" type="button" data-zurueck>← Übersicht</button>
+    <h2 id="z-titel">Zähler anlegen</h2>
+    <form class="panel" id="z-form" novalidate>
+      <div class="raster">
+        <div class="feld">
+          <label for="z-name">Bezeichnung</label>
+          <input id="z-name" autocomplete="off" placeholder="z. B. Wasseruhr Stadtwasser">
+        </div>
+        <div class="feld">
+          <label for="z-art">Art</label>
+          <select id="z-art">
+            <option value="wasser_kalt">Wasser kalt</option>
+            <option value="wasser_warm">Wasser warm</option>
+            <option value="strom_ferraris">Strom, Ferraris (Drehscheibe)</option>
+            <option value="strom">Strom, sonstiger</option>
+          </select>
+        </div>
+        <div class="feld">
+          <label for="z-nummer">Zählernummer</label>
+          <input id="z-nummer" autocomplete="off" placeholder="vom Typenschild">
+        </div>
+        <div class="feld">
+          <label for="z-ort">Einbauort</label>
+          <input id="z-ort" autocomplete="off" placeholder="z. B. Keller">
+        </div>
+        <div class="feld">
+          <label for="z-einheit">Einheit</label>
+          <input id="z-einheit" autocomplete="off">
+        </div>
+        <div class="feld" id="z-konstante-feld">
+          <label for="z-konstante">Zählerkonstante</label>
+          <input id="z-konstante" autocomplete="off" placeholder="z. B. 75 U/kWh">
+        </div>
+      </div>
+      <div class="knopfreihe">
+        <button class="knopf primaer" type="submit" id="z-speichern">Speichern</button>
+        <button class="knopf leise" type="button" data-zurueck>Abbrechen</button>
+        <button class="knopf gefahr rechts" type="button" id="z-loeschen" hidden>Zähler löschen</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Daten -->
+  <section id="v-daten" class="ansicht" hidden>
+    <button class="knopf leise zurueck" type="button" data-zurueck>← Übersicht</button>
+    <h2>Daten</h2>
+    <div class="panel">
+      <p>Alle Zähler, Ablesungen und Fotos liegen nur auf diesem Gerät. Sichere sie ab und zu als Datei, zum Beispiel vor einem Handywechsel.</p>
+      <div class="knopfreihe">
+        <button class="knopf primaer" id="d-sichern" type="button">Sicherung speichern</button>
+        <label class="knopf" for="d-laden">Sicherung laden<input id="d-laden" type="file" accept=".json,application/json" hidden></label>
+        <button class="knopf" id="d-csv" type="button">Tabelle (CSV) exportieren</button>
+      </div>
+      <p class="hinweistext" id="d-speicher"></p>
+    </div>
+    <div class="panel">
+      <h3>Erkennung</h3>
+      <p>Die Ziffern und Zeiger werden direkt auf dem Handy erkannt, ohne Internet. Die neuronalen Netze stammen aus dem Projekt
+        <a href="https://github.com/jomjol/AI-on-the-edge-device" target="_blank" rel="noopener">AI-on-the-edge-device</a> von jomjol
+        (Modelle <code>dig-cont_0900_s3_q</code> und <code>ana-cont_1500_s2_q</code>), für das Zählerbuch in ein eigenes Format umgewandelt.
+        Sie stehen unter einer Lizenz, die nur die private, nicht kommerzielle Nutzung erlaubt:
+        <a href="modelle/LIZENZ-AI-on-the-edge.md" target="_blank">Lizenztext</a>.</p>
+      <p class="hinweistext">Neuronale Netze können sich verlesen. Prüfe deshalb jeden Stand vor dem Speichern.</p>
+    </div>
+  </section>
+</div>
+
+<div class="gross-bild" id="gross" hidden><img id="gross-img" alt="Belegfoto groß"></div>
+<div class="meldung" id="meldung" role="status" hidden></div>
+
+<script src="js/app.js" type="module"></script>
+</body>
+</html>
