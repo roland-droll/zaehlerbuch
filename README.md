@@ -4,7 +4,13 @@ Wasseruhren und alte Ferraris-Stromzähler mit der Handykamera ablesen. Die App 
 Die Erkennung rechnet auf dem Gerät, die Daten liegen nur dort, nach dem ersten Öffnen geht alles ohne Internet.
 
 Beim ersten Start sind diese Zähler angelegt: Wasseruhr Stadtwasser, Wasseruhr Warmwasser, Wasseruhr Brunnen,
-Wasseruhr Kühlwasser, PV-Stromzähler (Ferraris). Weitere kommen über „+ Zähler“ dazu.
+Wasseruhr Kühlwasser, PV-Stromzähler (Ferraris), Heizölzähler (Liter), Heizung Betriebsstunden (h) und
+Brenner Starts. Bei bestehenden Daten kommen die drei Heizungszähler beim nächsten Start einmal dazu.
+Weitere kommen über „+ Zähler“ dazu.
+
+**Gute Fotos:** nah heran (die Rollen sollten mindestens ein Drittel der Bildbreite füllen), gerade von vorn,
+scharf, ohne Spiegelung im Glas. Bei sehr kleinen oder unscharfen Ziffern findet die Automatik die Reihe oft
+noch, liest aber einzelne Ziffern falsch.
 
 ## So wird abgelesen
 
@@ -25,7 +31,9 @@ Wasseruhr Kühlwasser, PV-Stromzähler (Ferraris). Weitere kommen über „+ Zä
    anfangen, dann ×0,01 usw. „Antippen“ setzt alle noch einmal neu. Die Kreise lassen sich bei offener Schablone
    auch verschieben und am gelben Randpunkt in der Größe ändern. Sie sind an den Rollenrahmen gebunden und wandern
    mit ihm mit, beim nächsten Mal sitzen sie also von selbst richtig. Jedes Rädchen liest ein eigenes Zeigermodell
-   (Winkel des roten Zeigers), die Stellen werden mit Übertrag zusammengesetzt.
+   (Winkel des roten Zeigers), und zwar an mehreren eng benachbarten Mitten; die Richtungen werden gemittelt, damit
+   ein Tipp etwas neben der Mitte oder ein blasser Zeiger nicht gleich zu einer falschen Ziffer führt. Sind sich
+   die Lesungen uneinig (Spiegelung), wird die Stelle orange markiert. Die Stellen werden mit Übertrag zusammengesetzt.
    Unter „Schablone“ lassen sich auch Rollenzahl, Rahmenhöhe und Drehung von Hand einstellen.
 5. Über jedem Feld steht die erkannte Ziffer, darunter die Ausschnitte. Orange markierte Stellen sind unsicher.
    Sitzt der Rahmen nicht ganz, im Standbild nachziehen (zwei Finger oder „+“ zum Vergrößern); die Erkennung
@@ -98,12 +106,16 @@ werkzeug/            Hilfen am PC (Python mit numpy, pillow, tflite)
   modell_ansehen.py  Schichten eines .tflite-Modells auflisten
   vorwaerts.py       Referenzrechnung in numpy, schreibt testvektoren.json
   pruefen.html       vergleicht die JavaScript-Rechnung mit der Referenz, testet die Übertragslogik
+  suche-pruefen.html Automatik an eigenen Fotos in test/eigene/1.jpg … (nicht im Repository), mit Ergebnisbildern
+  testserver.py      Testserver: wie http.server, nimmt zusätzlich Ergebnisbilder der Prüfseiten an (test/ausgabe/)
   icons_erzeugen.py  App-Symbole
 quellmodelle/        Original-Modelle (.tflite) aus AI-on-the-edge-device
 test/                Referenzbild aus AI-on-the-edge-device (Rollen 00016, Zeiger 3-1-3-9)
 ```
 
-Prüfen am PC: im Projektordner `python -m http.server 8765`, dann `http://localhost:8765/werkzeug/pruefen.html`.
+Prüfen am PC: im Projektordner `python werkzeug/testserver.py 8791`, dann
+`http://localhost:8791/werkzeug/pruefen.html` (Rechenwerk) und
+`http://localhost:8791/werkzeug/suche-pruefen.html?pruefen=1` (Automatik an eigenen Fotos).
 
 ## Erkennung und Lizenz
 

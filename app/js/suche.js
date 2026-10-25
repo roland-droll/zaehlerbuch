@@ -54,12 +54,24 @@
     return liste;
   }
 
-  // sieht aus wie eine einzelne Ziffer?
-  function zifferfoermig(f, W, H) {
+  // sieht aus wie eine einzelne Ziffer? (rgba optional: rote, vollflächige Flecken sind Zeiger, keine Ziffern)
+  function zifferfoermig(f, W, H, rgba) {
     if (f.x0 === 0 || f.y0 === 0 || f.x1 === W - 1 || f.y1 === H - 1) return false;
-    if (f.h < Math.max(8, H * 0.025) || f.h > H * 0.45 || f.b < 2) return false;
+    if (f.h < Math.max(7, H * 0.011) || f.h > H * 0.45 || f.b < 2) return false;
     const seiten = f.h / f.b, fuellung = f.anz / (f.b * f.h);
-    return seiten >= 1.05 && seiten <= 6.5 && fuellung >= 0.12 && fuellung <= 0.85;
+    if (!(seiten >= 1.05 && seiten <= 6.5 && fuellung >= 0.12 && fuellung <= 0.85)) return false;
+    if (rgba && fuellung > 0.42 && rotAnteil(rgba, W, f) > 0.5) return false;
+    return true;
+  }
+  function rotAnteil(rgba, W, f) {
+    let rote = 0, alle = 0;
+    const sx = Math.max(1, Math.floor(f.b / 6)), sy = Math.max(1, Math.floor(f.h / 8));
+    for (let y = f.y0; y <= f.y1; y += sy) for (let x = f.x0; x <= f.x1; x += sx) {
+      const p = (y * W + x) * 4, r = rgba[p], g = rgba[p + 1], b = rgba[p + 2];
+      alle++;
+      if (r > 80 && r > 1.6 * g && r > 1.6 * b) rote++;
+    }
+    return alle ? rote / alle : 0;
   }
 
   function median(a) { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; }
@@ -69,26 +81,37 @@
     const alle = [];
     for (let i = 0; i < teile.length; i++) {
       const kette = [teile[i]];
-      let teilung = null;
+      let teilung = null, summe = 0, schritteGesamt = 0;
       for (;;) {
         const l = kette[kette.length - 1];
-        let beste = null, besterWert = Infinity;
+        // Steigung der bisherigen Reihe: neue Ziffern müssen auf deren Linie liegen (nicht in eine Nachbarzeile springen)
+        const steig = kette.length > 1 ? (l.cy - kette[0].cy) / (l.cx - kette[0].cx) : 0;
+        let beste = null, besterWert = Infinity, besteSchritte = 1;
         for (let j = i + 1; j < teile.length; j++) {
           const t = teile[j], d = t.cx - l.cx;
           if (d <= 0) continue;
-          if (d > 1.7 * l.h) break;
-          const hv = t.h / l.h;
-          if (hv < 0.78 || hv > 1.28 || Math.abs(t.cy - l.cy) > 0.25 * l.h || d < 0.45 * l.h) continue;
-          if (teilung && Math.abs(d - teilung) > 0.25 * teilung) continue;
-          const wert = Math.abs(t.cy - l.cy) / l.h + Math.abs(hv - 1) + (teilung ? Math.abs(d - teilung) / teilung : 0);
-          if (wert < besterWert) { besterWert = wert; beste = t; }
+          if (d > (teilung ? 2.4 * teilung : 1.7 * l.h)) break;
+          const hv = t.h / l.h, dy = t.cy - (l.cy + steig * d);
+          if (hv < 0.75 || hv > 1.33 || Math.abs(dy) > (kette.length > 1 ? 0.22 : 0.3) * l.h) continue;
+          // eine einzelne nicht gefundene Ziffer (Schatten, Spiegelung) darf in der Reihe fehlen
+          let schritte = 1;
+          if (teilung) {
+            schritte = Math.round(d / teilung);
+            if (schritte < 1 || schritte > 2 || Math.abs(d / schritte - teilung) > 0.32 * teilung) continue;
+          } else if (d < 0.45 * l.h) continue;
+          const wert = Math.abs(dy) / l.h + Math.abs(hv - 1) + (teilung ? Math.abs(d / schritte - teilung) / teilung : 0) + (schritte - 1) * 0.5;
+          if (wert < besterWert) { besterWert = wert; beste = t; besteSchritte = schritte; }
         }
         if (!beste) break;
-        const d = beste.cx - l.cx;
-        teilung = teilung ? (teilung * (kette.length - 1) + d) / kette.length : d;
+        if (besteSchritte === 2) {
+          const cx = (l.cx + beste.cx) / 2, cy = (l.cy + beste.cy) / 2, h = (l.h + beste.h) / 2, b = (l.b + beste.b) / 2;
+          kette.push({ cx, cy, h, b, x0: cx - b / 2, x1: cx + b / 2, y0: cy - h / 2, y1: cy + h / 2, virtuell: true });
+        }
+        summe += beste.cx - l.cx; schritteGesamt += besteSchritte;
+        teilung = summe / schritteGesamt;
         kette.push(beste);
       }
-      if (kette.length >= 3) alle.push({ teile: kette.map(t => Object.assign({ art }, t)) });
+      if (kette.filter(t => !t.virtuell).length >= 3) alle.push({ teile: kette.map(t => Object.assign({ art }, t)) });
     }
     // Teilketten längerer Ketten weglassen
     alle.sort((a, b) => b.teile.length - a.teile.length);
@@ -99,7 +122,9 @@
 
   function kennwerte(k) {
     const t = k.teile, n = t.length;
-    const h = median(t.map(x => x.h));
+    // Ziffernhöhe nur aus den echten Funden, nicht aus ergänzten oder eingeschobenen Stellen
+    const echt = t.filter(x => !x.ergaenzt && !x.virtuell);
+    const h = median((echt.length ? echt : t).map(x => x.h));
     const teilung = n > 1 ? (t[n - 1].cx - t[0].cx) / (n - 1) : h;
     // Ausgleichsgerade durch die Mitten: Schräglage
     const mx = t.reduce((s, x) => s + x.cx, 0) / n, my = t.reduce((s, x) => s + x.cy, 0) / n;
@@ -108,7 +133,34 @@
     const steigung = sxx ? sxy / sxx : 0;
     const hs = Math.sqrt(t.reduce((s, x) => s + (x.h - h) ** 2, 0) / n) / h;
     const ds = n > 2 ? Math.sqrt(t.slice(1).reduce((s, x, i) => s + (x.cx - t[i].cx - teilung) ** 2, 0) / (n - 1)) / teilung : 0;
-    return Object.assign(k, { n, h, teilung, steigung, mx, my, gleichmass: Math.max(0, 1 - hs - ds) });
+    // Anteil sehr schmaler Striche: Kreisbögen der Zeigerrädchen, Skalenstriche (eine Reihe nur aus „1“ ist selten)
+    const duenn = echt.filter(x => x.h / x.b > 3.2).length / Math.max(1, echt.length);
+    return Object.assign(k, { n, h, teilung, steigung, mx, my, duenn, gleichmass: Math.max(0, 1 - hs - ds) });
+  }
+
+  /* Reihe an beiden Enden verlängern: an der erwarteten Stelle reicht ein schwächerer Fleck passender Größe
+     (Rolle im Schatten, Ziffer am Fensterrand, halb gedrehte Rolle). */
+  function verlaengern(k, alleFlecken, W) {
+    let geaendert = false;
+    for (const seite of [-1, 1]) {
+      for (let runde = 0; runde < 4; runde++) {
+        const ende = seite < 0 ? k.teile[0] : k.teile[k.teile.length - 1];
+        const x = ende.cx + seite * k.teilung, y = ende.cy + seite * k.teilung * k.steigung;
+        if (x < 0 || x > W) break;
+        let beste = null, besterWert = Infinity;
+        for (const f of alleFlecken) {
+          const dx = Math.abs(f.cx - x), dy = Math.abs(f.cy - y), hv = f.h / k.h;
+          if (dx > 0.3 * k.teilung || dy > 0.3 * k.h || hv < 0.55 || hv > 1.45 || f.b > 1.1 * k.teilung || f.b < 0.08 * k.h) continue;
+          const wert = dx / k.teilung + dy / k.h + Math.abs(hv - 1);
+          if (wert < besterWert) { besterWert = wert; beste = f; }
+        }
+        if (!beste) break;
+        const neu = Object.assign({ art: ende.art, ergaenzt: true }, beste);
+        if (seite < 0) k.teile.unshift(neu); else k.teile.push(neu);
+        geaendert = true;
+      }
+    }
+    return geaendert ? kennwerte(k) : k;
   }
 
   // dunkle und helle Kette, die nahtlos aneinander anschließen (schwarze Rollen, dann rote)
@@ -156,17 +208,24 @@
     return px;
   }
 
-  // rote Rollen von rechts zählen (Hintergrund der Zelle deutlich rot)
+  /* rote Nachkommastellen von rechts zählen: roter Rollengrund, rote Ziffer oder roter Rahmen um die Rolle.
+     Gezählt wird der Anteil deutlich roter Punkte in der Zelle samt Rand. */
   function roteRollen(rgba, W, H, b) {
     let rot = 0;
     for (let i = b.n - 1; i >= 0; i--) {
-      const c = b.zellen[i], px = probe(rgba, W, H, c.x, c.y, b.zb * 0.8, b.zh * 0.8, b.th, 8, 12);
-      let r = 0, g = 0, bl = 0;
-      for (let k = 0; k < px.length; k += 3) { r += px[k]; g += px[k + 1]; bl += px[k + 2]; }
-      if (r > 1.3 * g && r > 1.3 * bl && r / (px.length / 3) > 70) rot++; else break;
+      const c = b.zellen[i], px = probe(rgba, W, H, c.x, c.y, b.zb * 1.1, b.zh * 1.15, b.th, 12, 16);
+      let rote = 0;
+      for (let k = 0; k < px.length; k += 3) {
+        const r = px[k], g = px[k + 1], bl = px[k + 2];
+        if (r > 80 && r > 1.6 * g && r > 1.6 * bl) rote++;
+      }
+      if (rote / (px.length / 3) > 0.08) rot++; else break;
     }
     return Math.min(rot, 4);
   }
+
+  // Zuschnitt für das Ziffernmodell: so schmal wie im Training (Breite ≈ 0,62 × Höhe), höchstens eine Teilung
+  const zuschnittBreite = (zb, zh) => Math.min(zb, 0.62 * zh);
 
   /* Rollen sitzen in Fenstern: über und unter der Ziffernreihe läuft eine durchgehende Kante (Fensterrahmen),
      zwischen den Rollen stehen oft Trennstege. Aufgedruckte Zahlen (Seriennummer, Baujahr, Q3 …) stehen frei
@@ -212,9 +271,15 @@
      sperre: bisher verfolgtes Band {cx, cy, bw, hoehe} (0…1), Reihen in dessen Nähe werden stark bevorzugt. */
   function sucheReihe(rgba, W, H, { erwartet = null, pruefen = false, netz = null, fokus = null, sperre = null } = {}) {
     const g = grau(rgba, W, H);
-    const { dunkel, hell } = masken(g, W, H, Math.max(8, Math.round(Math.min(W, H) / 16)), 10);
-    const teile = art => flecken(art === "dunkel" ? dunkel : hell, W, H).filter(f => zifferfoermig(f, W, H));
-    const kd = ketten(teile("dunkel"), "dunkel").map(kennwerte), kh = ketten(teile("hell"), "hell").map(kennwerte);
+    // zwei Schwellen: die schwache fängt blasse Ziffern, die strenge trennt Ziffern von Rahmen und Rändern,
+    // an denen sie sonst hängen (weiße Ziffern am weißen Rand des Ferraris-Zählwerks, Schatten im Fenster)
+    const r = Math.max(8, Math.round(Math.min(W, H) / 16));
+    const schwellen = [masken(g, W, H, r, 10), masken(g, W, H, r, 28)];
+    const roh = { dunkel: schwellen.flatMap(m => flecken(m.dunkel, W, H)), hell: schwellen.flatMap(m => flecken(m.hell, W, H)) };
+    const teile = art => roh[art].filter(f => zifferfoermig(f, W, H, rgba));
+    const alleFlecken = [...roh.dunkel, ...roh.hell].filter(f => f.h >= 6 && f.anz >= 8 && !(f.anz / (f.b * f.h) > 0.42 && rotAnteil(rgba, W, f) > 0.5));
+    const kd = ketten(teile("dunkel"), "dunkel").map(kennwerte).map(k => verlaengern(k, alleFlecken, W));
+    const kh = ketten(teile("hell"), "hell").map(kennwerte).map(k => verlaengern(k, alleFlecken, W));
     const ketteListe = [...kd, ...kh];
     for (const a of kd) for (const b of kh) { const v = verbinden(a, b); if (v) ketteListe.push(v); }
     if (!ketteListe.length) return null;
@@ -236,10 +301,11 @@
     for (const x of baender) {
       const { k, b } = x;
       b.rahmen = rahmenWert(g, W, H, b);
-      const anzahl = erwartet ? 1 / (1 + Math.abs(k.n - erwartet)) : k.n <= 8 ? 1 : 0.55;
+      // ohne Vorgabe: längere Reihen bis 8 Rollen bevorzugen, drei einzelne Ziffern sind selten ein Zählwerk
+      const anzahl = erwartet ? 1 / (1 + Math.abs(k.n - erwartet)) : (k.n <= 8 ? k.n / 8 : 0.5) * (k.n === 3 ? 0.6 : 1);
       const mitte = 1 - 0.6 * Math.hypot(b.cx - 0.5, b.cy - 0.5);
-      // Zählerrollen sind fast immer die größte Zahlenreihe am Zähler: Höhe zählt quadratisch
-      x.wert = (0.5 + 2 * b.rahmen) * (k.h / hMax) ** 2 * anzahl * mitte * (0.5 + 0.5 * k.gleichmass);
+      // Zählerrollen sind fast immer die größte Zahlenreihe am Zähler
+      x.wert = (1 + b.rahmen) * (k.h / hMax) ** 1.5 * anzahl * mitte * (0.5 + 0.5 * k.gleichmass) * (k.duenn > 0.6 ? 0.25 : 1);
       if (fokus) { const d = abstandZumBand(b, W, H, fokus); x.wert *= d <= 0.1 ? 8 : d <= 0.8 ? 1 - d : 0.01; }
       if (sperre) {
         const nah = Math.abs(b.cx - sperre.cx) < 0.3 * sperre.bw && Math.abs(b.cy - sperre.cy) * H < sperre.hoehe * sperre.bw * W
@@ -251,16 +317,26 @@
     baender.sort((a, b) => b.wert - a.wert);
     let bestes = baender[0];
     bestes.b.guete = null;
+    const guete = (b, zh) => {
+      let summe = 0;
+      for (const c of b.zellen) summe += Netz.zifferWert(netz.rechne(probe(rgba, W, H, c.x, c.y, zuschnittBreite(b.zb, zh), zh, b.th, 20, 32))).guete;
+      return summe / b.zellen.length;
+    };
     if (pruefen && netz) {
       // das Ziffernmodell entscheidet mit, ob in den Feldern wirklich Ziffern stehen
       let besterWert = -1;
       for (const x of baender.slice(0, 4)) {
-        let summe = 0;
-        for (const c of x.b.zellen) summe += Netz.zifferWert(netz.rechne(probe(rgba, W, H, c.x, c.y, x.b.zb, x.b.zh, x.b.th, 20, 32))).guete;
-        x.b.guete = summe / x.b.zellen.length;
+        x.b.guete = guete(x.b, x.b.zh);
         const w = x.wert * (0.4 + x.b.guete);
         if (w > besterWert) { besterWert = w; bestes = x; }
       }
+      // passende Zellhöhe: gefunden wird mal die Ziffer, mal das ganze Rollenfenster
+      const b = bestes.b, grund = b.zh;
+      for (const f of [0.87, 1.16]) {
+        const q = guete(b, grund * f);
+        if (q > b.guete + 0.01) { b.guete = q; b.zh = grund * f; }
+      }
+      b.hoehe = b.zh / (b.bw * W);
     }
     const b = bestes.b;
     b.rot = roteRollen(rgba, W, H, b);
@@ -271,5 +347,6 @@
     return b;
   }
 
-  wurzel.Suche = { sucheReihe, probe };
+  // _intern nur für die Prüfseite werkzeug/suche-pruefen.html
+  wurzel.Suche = { sucheReihe, probe, zuschnittBreite, _intern: { grau, masken, flecken, zifferfoermig, ketten, kennwerte } };
 })(typeof self !== "undefined" ? self : window);

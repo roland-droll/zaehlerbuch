@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+# eigene Zählerfotos bleiben privat
+test/eigene/
+test/ausgabe/

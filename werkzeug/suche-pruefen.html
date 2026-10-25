@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<title>Zählerbuch – Suche an eigenen Fotos prüfen</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 16px; background: #fff; }
+  .raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  figure { margin: 0; } canvas { width: 100%; height: auto; display: block; border: 1px solid #ccc; }
+  figcaption { font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
+</style>
+<h1>Suche an eigenen Fotos</h1>
+<p>Fotos liegen in <code>test/eigene/1.jpg … n.jpg</code> (nicht im Repository). Grün: gefundene Rollenreihe mit Feldern,
+gelb gestrichelt: weitere Vorschläge. Darunter die erkannten Ziffern.</p>
+<div class="raster" id="raster"></div>
+<script src="../app/js/netz.js"></script>
+<script src="../app/js/suche.js"></script>
+<script>
+(async () => {
+  // ?seite=800 (Arbeitsauflösung), ?pruefen=1 (Modell entscheidet mit)
+  const q = new URLSearchParams(location.search);
+  window.MAXSEITE = Number(q.get("seite")) || 640; window.PRUEFEN = q.get("pruefen") === "1";
+  const netz = await Netz.ladeNetz("../app/modelle/ziffer");
+  const raster = document.getElementById("raster");
+  const ergebnisse = [];
+  for (let n = 1; n <= 20; n++) {
+    const antwort = await fetch(`../test/eigene/${n}.jpg`);
+    if (!antwort.ok) break;
+    const img = await createImageBitmap(await antwort.blob());
+    const f = Math.min(1, (window.MAXSEITE || 640) / Math.max(img.width, img.height));
+    const c = document.createElement("canvas"); c.width = Math.round(img.width * f); c.height = Math.round(img.height * f);
+    const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(img, 0, 0, c.width, c.height);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const t0 = performance.now();
+    const t = Suche.sucheReihe(d, c.width, c.height, { pruefen: !!window.PRUEFEN, netz });
+    const ms = Math.round(performance.now() - t0);
+    // ziffernförmige Flecken einzeichnen: blau dunkel, violett hell
+    const I = Suche._intern, gr = I.grau(d, c.width, c.height);
+    const mk = I.masken(gr, c.width, c.height, Math.max(8, Math.round(Math.min(c.width, c.height) / 16)), 10);
+    for (const [art, farbe] of [["dunkel", "#1060ff"], ["hell", "#d020d0"]]) {
+      g.strokeStyle = farbe; g.lineWidth = 1;
+      for (const fl of I.flecken(mk[art], c.width, c.height)) if (I.zifferfoermig(fl, c.width, c.height)) g.strokeRect(fl.x0, fl.y0, fl.b, fl.h);
+    }
+    let text = `${n}.jpg  ${ms} ms  `;
+    if (t) {
+      const W = c.width, H = c.height;
+      for (const v of t.vorschlaege.slice(1)) { g.strokeStyle = "#e0b000"; g.setLineDash([4, 3]); g.lineWidth = 2; g.strokeRect(v.cx * W - 3, v.cy * H - 3, 6, 6); }
+      g.setLineDash([]);
+      // Band zeichnen und Ziffern lesen
+      const w = t.bw * W, hh = t.hoehe * w, th = t.winkel * Math.PI / 180, cx = t.cx * W, cy = t.cy * H;
+      g.save(); g.translate(cx, cy); g.rotate(th); g.strokeStyle = "#00c040"; g.lineWidth = 2; g.strokeRect(-w / 2, -hh / 2, w, hh);
+      for (let i = 1; i < t.n; i++) { g.beginPath(); g.moveTo(-w / 2 + i * w / t.n, -hh / 2); g.lineTo(-w / 2 + i * w / t.n, hh / 2); g.stroke(); }
+      g.restore();
+      // Lesarten: volle Zellbreite, schmaler Zuschnitt (Seitenverhältnis wie im Training), schmal und invertiert
+      const lesart = (breite, invert) => {
+        const rollen = [];
+        for (let i = 0; i < t.n; i++) {
+          const lx = -w / 2 + (i + 0.5) * w / t.n;
+          const x = cx + lx * Math.cos(th), y = cy + lx * Math.sin(th);
+          const px = Suche.probe(d, W, H, x, y, Math.min(w / t.n, breite * hh), hh, th, 20, 32);
+          if (invert) for (let k = 0; k < px.length; k++) px[k] = 255 - px[k];
+          rollen.push(Netz.zifferWert(netz.rechne(px)));
+        }
+        const z = Netz.zusammensetzen(rollen, [], t.rot);
+        return z.text + "(" + (rollen.reduce((s, r) => s + r.guete, 0) / rollen.length).toFixed(2) + ")";
+      };
+      text += `n=${t.n} rot=${t.rot}  y=${Math.round(cy / f)}  liest ${lesart(0.62, false)}\n` +
+        `Rahmen ${t.rahmen.toFixed(2)}  Vorschläge ${t.vorschlaege.map(v => Math.round(v.cy * H / f) + ":" + v.n + ":" + v.wert).join(" ")}`;
+      ergebnisse.push({ n, y: Math.round(cy / f), anzahl: t.n, rot: t.rot });
+    } else { text += "nichts gefunden"; ergebnisse.push({ n, y: null }); }
+    raster.append(Object.assign(document.createElement("figure"), {}),);
+    const fig = raster.lastChild; fig.append(c, Object.assign(document.createElement("figcaption"), { textContent: text }));
+    // Bild beim Testserver ablegen (test/ausgabe/), damit es sich in Ruhe ansehen lässt
+    const png = await new Promise(ok => c.toBlob(ok, "image/png"));
+    fetch(`/ablage/suche_${n}.png`, { method: "POST", body: png }).catch(() => {});
+  }
+  window.ERGEBNISSE = ergebnisse;
+  fetch("/ablage/suche_ergebnis.txt", { method: "POST", body: [...document.querySelectorAll("figcaption")].map(f => f.textContent).join("\n") }).catch(() => {});
+})();
+</script>
+</html>

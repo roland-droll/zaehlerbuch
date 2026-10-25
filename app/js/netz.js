@@ -164,30 +164,35 @@
       unten = a;
     }
     const rollenZiffern = [], rollenUnsicher = [], zwischen = [];
-    // Stellung der unteren Stelle bezogen auf ihre schon entschiedene Ziffer: eine als 9,8 gelesene,
-    // aber als 0 entschiedene Rolle steht bei −0,2 (schon übergelaufen), nicht kurz vor dem Übertrag.
+    // `unten` ist die bereinigte Stellung der unteren Stelle (0 … <10), nicht ihr Rohwert: eine als 9,7 gelesene,
+    // aber als 0 entschiedene Rolle steht bei 0, wenn unter ihr kein Übertrag läuft – sonst rechnete sie die
+    // Stellen darüber herunter.
     const huelle = x => ((((x + 5) % 10) + 10) % 10) - 5;
-    let untenZiffer = zeigerZiffern.length ? zeigerZiffern[0] : null;
+    let untenIstZeiger = zeiger.length > 0;
     for (let i = rollen.length - 1; i >= 0; i--) {
       const v = rollen[i].wert;
-      let d, unsicher = false;
+      let d, unsicher = false, lage;
       if (unten == null) {
         d = Math.floor(v + 0.1);
         const f = v - Math.floor(v);
         zwischen[i] = f > 0.35 && f < 0.9;
+        lage = ganz10(d) + huelle(v - ganz10(d));
       } else {
-        const l = untenZiffer + huelle(unten - untenZiffer);
-        const schritt = v - (l >= 9 ? l - 9 : 0);   // Rolle springt nur beim Übertrag der unteren
-        const stetig = v - l / 10;                    // Rolle läuft mit der unteren mit
-        const rs = Math.abs(schritt - Math.round(schritt)), rt = Math.abs(stetig - Math.round(stetig));
-        const k = rs <= rt ? schritt : stetig;
+        const pSchritt = unten >= 9 ? unten - 9 : 0;   // Rolle springt nur beim Übertrag der unteren
+        let p = pSchritt, k = v - pSchritt, rest = Math.abs(k - Math.round(k));
+        if (untenIstZeiger) {
+          // über einem Zeigerrad kann die Rolle auch stetig mitlaufen
+          const stetig = v - unten / 10, rt = Math.abs(stetig - Math.round(stetig));
+          if (rt < rest) { k = stetig; p = unten / 10; rest = rt; }
+        }
         d = Math.round(k);
-        unsicher = Math.min(rs, rt) > 0.3;
+        unsicher = rest > 0.3;
         zwischen[i] = false;
+        lage = ganz10(d) + p;
       }
       rollenZiffern[i] = ganz10(d);
       rollenUnsicher[i] = unsicher || rollen[i].guete < 0.5;
-      unten = v; untenZiffer = rollenZiffern[i];
+      unten = lage; untenIstZeiger = false;
     }
     const vor = rollenZiffern.slice(0, rollenZiffern.length - rot).join("");
     const nach = rollenZiffern.slice(rollenZiffern.length - rot).join("") + zeigerZiffern.join("");

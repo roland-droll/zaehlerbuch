@@ -2,7 +2,7 @@
    Nur Systemschriften, damit alles offline gleich aussieht. */
 :root {
   --bg: #eceff0; --surface: #fafbfb; --ink: #13181b; --muted: #56626a; --line: #d3d9dc;
-  --accent: #1c5b84; --accent-ink: #ffffff; --rot: #c22f29; --warm: #b4502c; --strom: #9f6c0a;
+  --accent: #1c5b84; --accent-ink: #ffffff; --rot: #c22f29; --warm: #b4502c; --strom: #9f6c0a; --oel: #7a4a1c; --zeit: #5a4d8c;
   --ok: #2a7748; --warn: #93560a; --warn-bg: #f8edd8; --rolle: #1a1e21; --rolle-fg: #f6f6f4; --rolle-rand: #2c3236;
   --font-display: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -13,7 +13,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0f1214; --surface: #171c1f; --ink: #e5e9eb; --muted: #96a2a9; --line: #2a3236;
-    --accent: #6aa8d6; --accent-ink: #0a1620; --rot: #e5554b; --warm: #e88a63; --strom: #e0a83e;
+    --accent: #6aa8d6; --accent-ink: #0a1620; --rot: #e5554b; --warm: #e88a63; --strom: #e0a83e; --oel: #d9a066; --zeit: #a99be0;
     --ok: #5ec386; --warn: #e5a64a; --warn-bg: #2c2312; --rolle: #060809; --rolle-fg: #f2f2f0; --rolle-rand: #3a4348;
     color-scheme: dark;
   }
@@ -66,6 +66,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .chip { display: inline-block; font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
   border: 1px solid currentColor; line-height: 1.5; white-space: nowrap; }
 .chip.wasser { color: var(--accent); } .chip.warm { color: var(--warm); } .chip.strom { color: var(--strom); }
+.chip.oel { color: var(--oel); } .chip.zeit { color: var(--zeit); }
 .chip.ok { color: var(--ok); } .chip.warn { color: var(--warn); } .chip.grau { color: var(--muted); }
 .meta { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
 

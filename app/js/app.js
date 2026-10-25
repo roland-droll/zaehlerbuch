@@ -2,19 +2,26 @@
    Ablauf: Schablone (Rahmen über den Rollen, Kreise über den Zeigerrädchen) auf das Kamerabild legen, aufnehmen,
    die Ausschnitte im Worker durch die Ziffern-/Zeigermodelle rechnen, Stand prüfen, speichern (IndexedDB). */
 
+// wort: was der Zähler pro Tag misst (Verlauf, Diagramm)
 const ARTEN = {
-  wasser_kalt:    { text: "Kaltwasser",       einheit: "m³",  klasse: "wasser", schwarz: 5, rot: 3 },
-  wasser_warm:    { text: "Warmwasser",       einheit: "m³",  klasse: "warm",   schwarz: 5, rot: 3 },
-  strom_ferraris: { text: "Strom · Ferraris", einheit: "kWh", klasse: "strom",  schwarz: 6, rot: 1 },
-  strom:          { text: "Strom",            einheit: "kWh", klasse: "strom",  schwarz: 6, rot: 1 },
+  wasser_kalt:    { text: "Kaltwasser",       einheit: "m³",    klasse: "wasser", schwarz: 5, rot: 3, wort: "Verbrauch" },
+  wasser_warm:    { text: "Warmwasser",       einheit: "m³",    klasse: "warm",   schwarz: 5, rot: 3, wort: "Verbrauch" },
+  strom_ferraris: { text: "Strom · Ferraris", einheit: "kWh",   klasse: "strom",  schwarz: 6, rot: 1, wort: "Verbrauch" },
+  strom:          { text: "Strom",            einheit: "kWh",   klasse: "strom",  schwarz: 6, rot: 1, wort: "Verbrauch" },
+  heizoel:        { text: "Heizöl",           einheit: "l",     klasse: "oel",    schwarz: 5, rot: 2, wort: "Verbrauch" },
+  stunden:        { text: "Betriebsstunden",  einheit: "h",     klasse: "zeit",   schwarz: 5, rot: 1, wort: "Laufzeit" },
+  starts:         { text: "Brennerstarts",    einheit: "Starts", klasse: "zeit",  schwarz: 6, rot: 0, wort: "Starts" },
 };
-// Beim ersten Start angelegt (die Zähler im Haus)
+// Beim ersten Start angelegt (die Zähler im Haus); spätere Ergänzungen kommen bei bestehenden Daten dazu
 const ERSTE_ZAEHLER = [
   { name: "Wasseruhr Stadtwasser", art: "wasser_kalt" },
   { name: "Wasseruhr Warmwasser", art: "wasser_warm" },
   { name: "Wasseruhr Brunnen", art: "wasser_kalt" },
   { name: "Wasseruhr Kühlwasser", art: "wasser_kalt" },
-  { name: "PV-Stromzähler", art: "strom_ferraris" },
+  { name: "PV-Stromzähler", art: "strom_ferraris", konstante: "75 U/kWh" },
+  { name: "Heizölzähler", art: "heizoel" },
+  { name: "Heizung Betriebsstunden", art: "stunden" },
+  { name: "Brenner Starts", art: "starts" },
 ];
 const TAG = 86400000;
 const ZEIGER_NAMEN = ["×0,1", "×0,01", "×0,001", "×0,0001"];
@@ -251,13 +258,13 @@ function zeichneDetail() {
 }
 
 function diagramm(st, a) {
-  const box = h("div", { class: "panel diagramm" }, h("h3", {}, `Verbrauch pro Tag je Ablesezeitraum (${a.einheit})`));
+  const box = h("div", { class: "panel diagramm" }, h("h3", {}, `${a.wort} pro Tag je Ablesezeitraum (${a.einheit})`));
   const per = st.perioden.filter(p => p.proTag != null && p.diff >= 0 && p.tage > 0).slice(-12);
-  if (!per.length) { box.append(h("p", { class: "hinweistext" }, "Ab zwei Ablesungen zeigt sich hier der Verbrauch.")); return box; }
+  if (!per.length) { box.append(h("p", { class: "hinweistext" }, `Ab zwei Ablesungen zeigt sich hier der ${a.wort === "Starts" ? "Verlauf" : a.wort}.`)); return box; }
   const B = 600, H = 220, L = 48, R = 12, O = 14, U = 30;
   const max = Math.max(...per.map(p => p.proTag), st.proTag || 0) || 1;
   const schritt = schoen(max / 4), oben = Math.ceil(max / schritt) * schritt, y = v => O + (H - O - U) * (1 - v / oben);
-  const farbe = a.klasse === "strom" ? "var(--strom)" : a.klasse === "warm" ? "var(--warm)" : "var(--accent)";
+  const farbe = { strom: "var(--strom)", warm: "var(--warm)", oel: "var(--oel)", zeit: "var(--zeit)" }[a.klasse] || "var(--accent)";
   const svg = s("svg", { viewBox: `0 0 ${B} ${H}`, role: "img", "aria-label": "Verbrauch pro Tag je Zeitraum" });
   for (let v = 0; v <= oben + 1e-9; v += schritt) {
     svg.append(s("line", { x1: L, x2: B - R, y1: y(v), y2: y(v), class: "achse" }));
@@ -397,6 +404,7 @@ const A = {
   sperre: null,       // verfolgte Reihe: andere Zahlenreihen werden nicht übernommen
   fehlgriffe: 0,      // Suchläufe hintereinander ohne die verfolgte Reihe
   zeigerSetzen: null, // Index des Zeigerrads, das als nächstes angetippt wird
+  zeigerGruendlich: false, // nächste Erkennung sucht die Mitte der Zeigerräder in größerem Umkreis
   suchGeneration: 0,
 };
 
@@ -553,6 +561,7 @@ function bildUebernehmen(canvas) {
   $("w-aufnehmen").hidden = true; $("w-neu").hidden = false; $("w-zoom").hidden = false; $("w-ausrichten").hidden = false;
   buehnenHinweis("");
   zeichneBuehne();
+  A.zeigerGruendlich = true;
   if (A.auto) standbildSuchen(); else erkennen();
 }
 $("w-neu").addEventListener("click", neueAufnahme);
@@ -600,7 +609,11 @@ function trefferUebernehmen(t, live) {
     if (A.zaehlVerlauf.length > 6) A.zaehlVerlauf.shift();
     const zaehl = {};
     for (const x of (live ? A.zaehlVerlauf : [t.n + "/" + t.rot])) zaehl[x] = (zaehl[x] || 0) + 1;
-    const [n, rot] = Object.entries(zaehl).sort((x, y) => y[1] - x[1])[0][0].split("/").map(Number);
+    let [n, rot] = Object.entries(zaehl).sort((x, y) => y[1] - x[1])[0][0].split("/").map(Number);
+    // keine rote Rolle gesehen, aber die Rollenzahl passt zur Zählerart: deren Aufteilung nehmen
+    // (Ferraris: Nachkommastelle oft nur mit rotem Rahmen, Ziffer weiß auf schwarz)
+    const a = art(S.zaehler.get(A.zid));
+    if (!rot && n === a.schwarz + a.rot) rot = a.rot;
     A.schab.rot = Math.min(rot, n - 1); A.schab.schwarz = n - A.schab.rot;
   }
   schabloneAnzeigen();
@@ -626,7 +639,9 @@ function liveSucheStarten() {
       if (t && trefferUebernehmen(t, true)) {
         A.sperre = { cx: t.cx, cy: t.cy, bw: t.bw, hoehe: t.hoehe };
         A.fehlgriffe = 0; A.fokus = null;
-        if (A.zeigerSetzen == null) buehnenHinweis(`Zählwerk erkannt: ${A.schab.schwarz + A.schab.rot} Rollen. Falsche Reihe? Aufs Zählwerk tippen.`);
+        if (A.zeigerSetzen == null) buehnenHinweis(t.bw < 0.3
+          ? `Zählwerk erkannt, aber klein: näher heran, bis die Rollen gut ein Drittel der Bildbreite füllen.`
+          : `Zählwerk erkannt: ${A.schab.schwarz + A.schab.rot} Rollen. Falsche Reihe? Aufs Zählwerk tippen.`);
       } else if (!t) {
         if (A.sperre && ++A.fehlgriffe >= 8) A.sperre = null;
         if (A.zeigerSetzen == null) buehnenHinweis("Zählwerk wird gesucht … näher heran, gerade von vorn, ohne Spiegelung.");
@@ -638,7 +653,8 @@ liveSucheStarten();
 async function standbildSuchen() {
   if (!A.bild) return;
   $("erkannt").hidden = false; $("e-status").textContent = "sucht die Ziffernreihe …";
-  const q = A.bild.quelle, f = Math.min(1, 1000 / Math.max(q.width, q.height));
+  // dieselbe Arbeitsauflösung wie im Live-Bild: daran ist die Suche abgestimmt
+  const q = A.bild.quelle, f = Math.min(1, 640 / Math.max(q.width, q.height));
   const c = h("canvas"); c.width = Math.round(q.width * f); c.height = Math.round(q.height * f);
   const g = c.getContext("2d", { willReadFrequently: true }); g.imageSmoothingQuality = "high"; g.drawImage(q, 0, 0, c.width, c.height);
   const generation = ++A.suchGeneration;
@@ -881,6 +897,7 @@ function beiTipp(q) {
     z.x = l.x / geo.w; z.y = l.y / geo.w; z.r = begrenze(0.85 * A.schab.hoehe, 0.03, 0.6);
     A.zeigerSetzen = i + 1 < A.schab.zeiger.length ? i + 1 : null;
     zeigerHinweis(); schabloneAnzeigen(true); zeichneBuehne();
+    A.zeigerGruendlich = true;
     if (A.bild) erkennen();
     return;
   }
@@ -920,15 +937,25 @@ function erkennen() {
 async function erkennenJetzt() {
   if (!A.bild) return;
   const geo = geometrie(), auftrag = ++A.auftrag;
-  const ziffern = geo.zellen.map(z => ausschnitt(z.x, z.y, z.b, z.h, geo.th, 20, 32));
-  const zeiger = geo.zeiger.map(z => ausschnitt(z.x, z.y, 2 * z.r, 2 * z.r, geo.th, 32, 32));
+  // schmaler Zuschnitt um die Ziffer, so wie das Modell trainiert ist (Breite ≈ 0,62 × Höhe)
+  const ziffern = geo.zellen.map(z => ausschnitt(z.x, z.y, Math.min(z.b, 0.62 * z.h), z.h, geo.th, 20, 32));
+  // Zeigerrad: größere Region (2,6 Radien), der Worker sucht darin die genaue Mitte und Größe
+  const zeiger = geo.zeiger.map(z => ausschnitt(z.x, z.y, 2.6 * z.r, 2.6 * z.r, geo.th, 96, 96));
+  const gruendlich = A.zeigerGruendlich; A.zeigerGruendlich = false;
+  const zeigerVorher = JSON.stringify(A.schab.zeiger);
   $("erkannt").hidden = false; $("e-status").textContent = "rechnet …";
   const antwort = await new Promise(ok => {
     offeneAuftraege.set(auftrag, ok);
-    erkennerHolen().postMessage({ id: auftrag, ziffern: ziffern.map(x => x.px), zeiger: zeiger.map(x => x.px) });
+    erkennerHolen().postMessage({ id: auftrag, ziffern: ziffern.map(x => x.px), zeiger: zeiger.map(x => x.px), gruendlich });
   });
   if (auftrag !== A.auftrag || !A.bild) return;
   if (antwort.fehler) { $("e-status").textContent = "Erkennung nicht verfügbar: " + antwort.fehler; return; }
+  // gefundene Mitte und Größe der Zeigerräder übernehmen (nur wenn sich die Schablone inzwischen nicht geändert hat)
+  if (JSON.stringify(A.schab.zeiger) === zeigerVorher)
+    antwort.zeiger.forEach((t, i) => {
+      const z = A.schab.zeiger[i]; if (!z) return;
+      z.x += t.dx * z.r; z.y += t.dy * z.r; z.r = begrenze(z.r * t.rf, 0.02, 0.6);
+    });
   const zus = Netz.zusammensetzen(antwort.ziffern, antwort.zeiger, A.schab.rot);
   A.ergebnis = { roh: antwort, zus, ziffernBilder: ziffern.map(x => x.canvas), zeigerBilder: zeiger.map(x => x.canvas) };
   zeigeErgebnis();
@@ -1013,10 +1040,18 @@ async function start() {
     const [zs, as, meta] = await Promise.all([alle("zaehler"), alle("ablesungen"), alle("meta")]);
     zs.forEach(z => S.zaehler.set(z.id, z));
     as.forEach(a => S.ablesungen.set(a.id, a));
+    const neuerZaehler = (v, reihe) => speichereZaehler({ id: neueId(), reihe, nummer: "", ort: "", einheit: ARTEN[v.art].einheit, konstante: "", erstellt: new Date().toISOString(), ...v });
     if (!meta.some(m => m.schluessel === "eingerichtet")) {
       let reihe = 1;
-      for (const v of ERSTE_ZAEHLER) await speichereZaehler({ id: neueId(), reihe: reihe++, nummer: "", ort: "", einheit: ARTEN[v.art].einheit, konstante: "", erstellt: new Date().toISOString(), ...v });
+      for (const v of ERSTE_ZAEHLER) await neuerZaehler(v, reihe++);
       await ablegen("meta", { schluessel: "eingerichtet", am: new Date().toISOString() });
+      await ablegen("meta", { schluessel: "heizung-ergaenzt", am: new Date().toISOString() });
+    } else if (!meta.some(m => m.schluessel === "heizung-ergaenzt")) {
+      // Heizöl, Betriebsstunden und Brennerstarts kamen später dazu: bei bestehenden Daten einmal ergänzen
+      let reihe = Math.max(0, ...[...S.zaehler.values()].map(z => z.reihe || 0)) + 1;
+      for (const v of ERSTE_ZAEHLER.filter(v => ["heizoel", "stunden", "starts"].includes(v.art)))
+        if (![...S.zaehler.values()].some(z => z.name === v.name)) await neuerZaehler(v, reihe++);
+      await ablegen("meta", { schluessel: "heizung-ergaenzt", am: new Date().toISOString() });
     }
   } catch (err) {
     banner("Der Speicher des Browsers ist nicht verfügbar (privates Fenster?). Ablesungen können nicht gespeichert werden.");

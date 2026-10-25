@@ -1,6 +1,6 @@
 /* Service Worker: hält alle Programmdateien und Modelle im Cache, damit das Zählerbuch ohne Netz startet.
    Bei jeder Änderung an den Dateien STAND hochzählen, sonst bekommen installierte Apps die neue Fassung nicht. */
-const STAND = "zaehlerbuch-3";
+const STAND = "zaehlerbuch-4";
 const DATEIEN = [
   "./", "index.html", "app.css", "manifest.webmanifest",
   "js/app.js", "js/netz.js", "js/suche.js", "js/erkenner.js",
