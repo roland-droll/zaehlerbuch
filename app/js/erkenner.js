@@ -10,7 +10,7 @@ self.onmessage = async e => {
   try {
     const netze = await bereit;
     if (d.typ === "suchen") {
-      const treffer = Suche.sucheReihe(d.rgba, d.W, d.H, { erwartet: d.erwartet, pruefen: d.pruefen, netz: netze.ziffer });
+      const treffer = Suche.sucheReihe(d.rgba, d.W, d.H, { erwartet: d.erwartet, pruefen: d.pruefen, netz: netze.ziffer, fokus: d.fokus, sperre: d.sperre });
       self.postMessage({ id: d.id, treffer });
       return;
     }

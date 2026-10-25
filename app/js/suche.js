@@ -168,26 +168,60 @@
     return Math.min(rot, 4);
   }
 
-  /* Hauptaufruf. erwartet: Zahl der Rollen laut Schablone (oder null), netz: Ziffernmodell (für pruefen). */
-  function sucheReihe(rgba, W, H, { erwartet = null, pruefen = false, netz = null } = {}) {
+  /* Rollen sitzen in Fenstern: über und unter der Ziffernreihe läuft eine durchgehende Kante (Fensterrahmen),
+     zwischen den Rollen stehen oft Trennstege. Aufgedruckte Zahlen (Seriennummer, Baujahr, Q3 …) stehen frei
+     auf dem Zifferblatt. Gemessen wird der Median ganzer Linien, damit Textzeilen in der Nähe nicht zählen. */
+  function rahmenWert(g, W, H, b) {
+    const h = b.zh / 1.38, cos = Math.cos(b.th), sin = Math.sin(b.th);
+    const pkt = (c, lx, ly) => {
+      const x = Math.round(c.x + lx * cos - ly * sin), y = Math.round(c.y + lx * sin + ly * cos);
+      return x < 0 || y < 0 || x >= W || y >= H ? null : g[y * W + x];
+    };
+    const sammeln = (werte, v) => { if (v != null) werte.push(v); };
+    const innenWerte = [];
+    for (const c of b.zellen) for (const dy of [-0.58 * h, 0.58 * h]) for (let i = -1; i <= 1; i++) sammeln(innenWerte, pkt(c, i * b.zb * 0.25, dy));
+    if (innenWerte.length < 6) return 0;
+    const innen = median(innenWerte);
+    const linie = dy => { const w = []; for (const c of b.zellen) for (let i = -2; i <= 2; i++) sammeln(w, pkt(c, (i * b.zb) / 5, dy)); return w.length > 4 ? median(w) : null; };
+    let oben = 0, unten = 0;
+    for (let d = 0.62; d <= 1.5; d += 0.06) {
+      const o = linie(-d * h), u = linie(d * h);
+      if (o != null) oben = Math.max(oben, Math.abs(o - innen));
+      if (u != null) unten = Math.max(unten, Math.abs(u - innen));
+    }
+    const stege = [];
+    for (let i = 0; i < b.zellen.length - 1; i++) {
+      const a = b.zellen[i], e = b.zellen[i + 1], m = { x: (a.x + e.x) / 2, y: (a.y + e.y) / 2 }, w = [];
+      for (let j = -3; j <= 3; j++) sammeln(w, pkt(m, 0, j * h * 0.12));
+      if (w.length) stege.push(Math.abs(median(w) - innen));
+    }
+    const steg = stege.length ? median(stege) : 0;
+    return (Math.min(oben, unten) * 0.6 + Math.max(oben, unten) * 0.2 + steg * 0.4) / 255;
+  }
+
+  // Abstand eines Punkts zum Band in Zellenhöhen (0 = im Band)
+  function abstandZumBand(b, W, H, p) {
+    const x = p.x * W - b.cx * W, y = p.y * H - b.cy * H, cos = Math.cos(b.th), sin = Math.sin(b.th);
+    const lx = x * cos + y * sin, ly = -x * sin + y * cos, hb = (b.bw * W) / 2, hh = b.zh / 2;
+    return Math.hypot(Math.max(0, Math.abs(lx) - hb), Math.max(0, Math.abs(ly) - hh)) / b.zh;
+  }
+
+  /* Hauptaufruf.
+     erwartet: Zahl der Rollen laut Schablone (oder null); netz: Ziffernmodell (für pruefen);
+     fokus: angetippter Punkt {x, y} (0…1), die Reihe muss dort liegen;
+     sperre: bisher verfolgtes Band {cx, cy, bw, hoehe} (0…1), Reihen in dessen Nähe werden stark bevorzugt. */
+  function sucheReihe(rgba, W, H, { erwartet = null, pruefen = false, netz = null, fokus = null, sperre = null } = {}) {
     const g = grau(rgba, W, H);
     const { dunkel, hell } = masken(g, W, H, Math.max(8, Math.round(Math.min(W, H) / 16)), 10);
     const teile = art => flecken(art === "dunkel" ? dunkel : hell, W, H).filter(f => zifferfoermig(f, W, H));
     const kd = ketten(teile("dunkel"), "dunkel").map(kennwerte), kh = ketten(teile("hell"), "hell").map(kennwerte);
-    let kandidaten = [...kd, ...kh];
-    for (const a of kd) for (const b of kh) { const v = verbinden(a, b); if (v) kandidaten.push(v); }
-    if (!kandidaten.length) return null;
+    const ketteListe = [...kd, ...kh];
+    for (const a of kd) for (const b of kh) { const v = verbinden(a, b); if (v) ketteListe.push(v); }
+    if (!ketteListe.length) return null;
 
-    const wert = k => {
-      const n = erwartet ? Math.min(k.n, erwartet) - 0.5 * Math.max(0, k.n - erwartet) : Math.min(k.n, 9);
-      return Math.max(0.1, n) * k.h * (0.3 + k.gleichmass);
-    };
-    kandidaten.sort((a, b) => wert(b) - wert(a));
-    kandidaten = kandidaten.slice(0, pruefen ? 4 : 1);
-
-    // Bänder je Kandidat, bei bekannter Rollenzahl auf diese gebracht
+    // Bänder je Kette, bei bekannter Rollenzahl auf diese gebracht
     const baender = [];
-    for (const k of kandidaten) {
+    for (const k of ketteListe) {
       const N = erwartet || k.n;
       if (k.n >= N) {
         for (let s = 0; s <= k.n - N; s++) baender.push({ k, b: band(k, W, H, N, s) });
@@ -198,20 +232,41 @@
         baender.push({ k, b: band(k, W, H, N, -(N - k.n - rechts)) });
       }
     }
-    // ohne Prüfung bei zu langer Kette die rechten Rollen nehmen (links stehen eher Aufdrucke)
-    let bestes = baender[baender.length - 1];
+    const hMax = Math.max(...ketteListe.map(k => k.h));
+    for (const x of baender) {
+      const { k, b } = x;
+      b.rahmen = rahmenWert(g, W, H, b);
+      const anzahl = erwartet ? 1 / (1 + Math.abs(k.n - erwartet)) : k.n <= 8 ? 1 : 0.55;
+      const mitte = 1 - 0.6 * Math.hypot(b.cx - 0.5, b.cy - 0.5);
+      // Zählerrollen sind fast immer die größte Zahlenreihe am Zähler: Höhe zählt quadratisch
+      x.wert = (0.5 + 2 * b.rahmen) * (k.h / hMax) ** 2 * anzahl * mitte * (0.5 + 0.5 * k.gleichmass);
+      if (fokus) { const d = abstandZumBand(b, W, H, fokus); x.wert *= d <= 0.1 ? 8 : d <= 0.8 ? 1 - d : 0.01; }
+      if (sperre) {
+        const nah = Math.abs(b.cx - sperre.cx) < 0.3 * sperre.bw && Math.abs(b.cy - sperre.cy) * H < sperre.hoehe * sperre.bw * W
+          && b.bw / sperre.bw > 0.7 && b.bw / sperre.bw < 1.45;
+        x.wert *= nah ? 3 : 0.3;
+        b.nahSperre = nah;
+      }
+    }
+    baender.sort((a, b) => b.wert - a.wert);
+    let bestes = baender[0];
     bestes.b.guete = null;
     if (pruefen && netz) {
-      let besteGuete = -1;
-      for (const x of baender) {
+      // das Ziffernmodell entscheidet mit, ob in den Feldern wirklich Ziffern stehen
+      let besterWert = -1;
+      for (const x of baender.slice(0, 4)) {
         let summe = 0;
         for (const c of x.b.zellen) summe += Netz.zifferWert(netz.rechne(probe(rgba, W, H, c.x, c.y, x.b.zb, x.b.zh, x.b.th, 20, 32))).guete;
         x.b.guete = summe / x.b.zellen.length;
-        if (x.b.guete > besteGuete) { besteGuete = x.b.guete; bestes = x; }
+        const w = x.wert * (0.4 + x.b.guete);
+        if (w > besterWert) { besterWert = w; bestes = x; }
       }
     }
     const b = bestes.b;
     b.rot = roteRollen(rgba, W, H, b);
+    b.kandidaten = baender.length;
+    // die stärksten Vorschläge zur Kontrolle (Prüfseite)
+    b.vorschlaege = baender.slice(0, 5).map(x => ({ cx: +x.b.cx.toFixed(3), cy: +x.b.cy.toFixed(3), n: x.b.n, rahmen: +x.b.rahmen.toFixed(3), wert: +x.wert.toFixed(3) }));
     delete b.zellen;
     return b;
   }

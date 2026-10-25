@@ -14,12 +14,19 @@ Wasseruhr Kühlwasser, PV-Stromzähler (Ferraris). Weitere kommen über „+ Zä
    mit passender Größe, Höhe und Schräglage. Beim ersten Ablesen eines Zählers zählt sie auch die Rollen und
    erkennt rote Nachkommarollen an der Farbe. Ist eine Schablone gespeichert, bleibt deren Rollenzahl fest und nur
    Lage und Größe folgen. Wer den Rahmen von Hand zieht, schaltet die Automatik für diese Aufnahme aus.
+   Eine gefundene Reihe wird festgehalten; andere Zahlenreihen (Seriennummer, Baujahr, Aufdrucke) übernimmt die
+   Automatik erst, wenn das Zählwerk einige Sekunden nicht mehr zu sehen ist. **Nimmt sie die falsche Reihe, einmal
+   im Bild auf das Zählwerk tippen**: Dann sucht sie genau dort und bleibt dabei.
 3. Handy ruhig und gerade vor das Zählwerk halten, bis „Zählwerk erkannt“ erscheint, dann den **runden Auslöser**
    unten im Kamerabild tippen. Im Standbild sucht die App noch einmal genauer und lässt bei mehreren Möglichkeiten
    (etwa Zählwerk oder aufgedruckte Seriennummer) das Ziffernmodell entscheiden. „Automatisch ausrichten“ wiederholt das.
-4. **Zeigerrädchen** (×0,1 ×0,01 … auf Wasseruhren) findet die Automatik nicht. Einmal je Zähler unter „Schablone“
-   die Zahl der Zeiger einstellen und die gelben Kreise auf die Rädchen ziehen (Größe am gelben Punkt am Kreisrand);
-   danach wandern sie mit dem Rahmen mit. Dort lassen sich auch Rollenzahl, Rahmenhöhe und Drehung von Hand einstellen.
+4. **Zeigerrädchen** (×0,1 ×0,01 … auf Wasseruhren) findet die Automatik nicht von selbst. Einmal je Zähler unter
+   „Schablone“ bei „Zeigerrädchen“ auf „+“ tippen und dann im Bild auf die Mitte des Rädchens tippen, mit ×0,1
+   anfangen, dann ×0,01 usw. „Antippen“ setzt alle noch einmal neu. Die Kreise lassen sich bei offener Schablone
+   auch verschieben und am gelben Randpunkt in der Größe ändern. Sie sind an den Rollenrahmen gebunden und wandern
+   mit ihm mit, beim nächsten Mal sitzen sie also von selbst richtig. Jedes Rädchen liest ein eigenes Zeigermodell
+   (Winkel des roten Zeigers), die Stellen werden mit Übertrag zusammengesetzt.
+   Unter „Schablone“ lassen sich auch Rollenzahl, Rahmenhöhe und Drehung von Hand einstellen.
 5. Über jedem Feld steht die erkannte Ziffer, darunter die Ausschnitte. Orange markierte Stellen sind unsicher.
    Sitzt der Rahmen nicht ganz, im Standbild nachziehen (zwei Finger oder „+“ zum Vergrößern); die Erkennung
    rechnet sofort neu.

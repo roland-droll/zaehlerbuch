@@ -63,7 +63,7 @@
         <button class="knopf" type="button" data-zoom="1" aria-label="Vergrößern">+</button>
       </span>
     </div>
-    <p class="hinweistext" id="a-anleitung">Die Automatik sucht die Ziffernreihe und legt den Rahmen darauf. Halte das Handy ruhig und gerade vor das Zählwerk und tippe auf den runden Auslöser. Sitzt der Rahmen falsch, kannst du ihn verschieben und an der Ecke größer ziehen.</p>
+    <p class="hinweistext" id="a-anleitung">Die Automatik sucht die Ziffernreihe und legt den Rahmen darauf. Nimmt sie eine andere Zahlenreihe (Seriennummer, Aufdruck), tippe im Bild einmal auf das Zählwerk. Dann das Handy ruhig halten und den runden Auslöser tippen. Den Rahmen kannst du auch von Hand verschieben und an der Ecke größer ziehen.</p>
 
     <details class="panel" id="schablone">
       <summary><b>Schablone</b> <span class="hinweistext" id="s-zusammenfassung"></span></summary>
@@ -80,8 +80,9 @@
         </div>
         <div class="feld">
           <span class="lbl">Zeigerrädchen</span>
-          <div class="stufer"><button class="knopf" type="button" data-stufe="zeiger:-1">−</button><b id="s-zeiger">0</b><button class="knopf" type="button" data-stufe="zeiger:1">+</button></div>
-          <small>rote Zeiger ×0,1 ×0,01 …, Kreise aufs Bild ziehen</small>
+          <div class="stufer"><button class="knopf" type="button" data-stufe="zeiger:-1">−</button><b id="s-zeiger">0</b><button class="knopf" type="button" data-stufe="zeiger:1">+</button>
+            <button class="knopf" type="button" id="s-zeiger-tippen">Antippen</button></div>
+          <small>rote Zeiger ×0,1 ×0,01 …: nach „+“ im Bild auf die Mitte des Rädchens tippen, ×0,1 zuerst</small>
         </div>
         <div class="feld">
           <label for="s-hoehe">Rahmenhöhe</label>

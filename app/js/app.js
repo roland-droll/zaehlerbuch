@@ -393,6 +393,11 @@ const A = {
   stream: null, licht: false, ergebnis: null, handEingabe: false, fotoQuelle: null, auftrag: 0,
   // Automatik: Rollenreihe suchen und Rahmen darauf legen
   auto: true, zaehlFest: false, sucheOffen: false, letzterTreffer: null, stabil: 0, zaehlVerlauf: [],
+  fokus: null,        // angetippter Punkt: dort soll die Reihe liegen
+  sperre: null,       // verfolgte Reihe: andere Zahlenreihen werden nicht übernommen
+  fehlgriffe: 0,      // Suchläufe hintereinander ohne die verfolgte Reihe
+  zeigerSetzen: null, // Index des Zeigerrads, das als nächstes angetippt wird
+  suchGeneration: 0,
 };
 
 function standardSchablone(z) {
@@ -438,6 +443,7 @@ function neueAufnahme() {
   $("a-stand").value = ""; $("a-notiz").value = ""; $("a-zeit").value = lokalFeld(Date.now());
   $("w-neu").hidden = true; $("w-zoom").hidden = true; $("w-ausrichten").hidden = true;
   A.letzterTreffer = null; A.stabil = 0; A.zaehlVerlauf = [];
+  A.fokus = null; A.sperre = null; A.fehlgriffe = 0; A.zeigerSetzen = null;
   standHinweis(); pruefeEingabe();
   kameraStart();
 }
@@ -572,7 +578,7 @@ function suchen(canvas, pruefen) {
   const id = -(++sucheNr);   // eigene (negative) Nummern, damit laufende Erkennungen gültig bleiben
   return new Promise(ok => {
     offeneAuftraege.set(id, ok);
-    erkennerHolen().postMessage({ id, typ: "suchen", rgba: daten.data, W: canvas.width, H: canvas.height, erwartet: erwarteteRollen(), pruefen }, [daten.data.buffer]);
+    erkennerHolen().postMessage({ id, typ: "suchen", rgba: daten.data, W: canvas.width, H: canvas.height, erwartet: erwarteteRollen(), pruefen, fokus: A.fokus, sperre: A.sperre }, [daten.data.buffer]);
   });
 }
 // Treffer auf die Schablone übertragen; live erst nach zwei passenden Funden hintereinander und geglättet
@@ -584,7 +590,7 @@ function trefferUebernehmen(t, live) {
     A.letzterTreffer = t;
     if (A.stabil < 1) return false;
   }
-  const a = live ? 0.55 : 1;
+  const a = live && !A.fokus ? 0.55 : 1;   // nach dem Antippen direkt auf die gewählte Reihe springen
   L.cx += a * (t.cx - L.cx); L.cy += a * (t.cy - L.cy); L.bw += a * (t.bw - L.bw);
   L.winkel = Math.round((L.winkel + a * (t.winkel - L.winkel)) * 2) / 2;
   A.schab.hoehe += a * (t.hoehe - A.schab.hoehe);
@@ -608,11 +614,23 @@ function liveSucheStarten() {
     if (S.ansicht !== "ablesen" || A.modus !== "live" || !A.auto || A.sucheOffen || zug || !video.videoWidth || document.hidden) return;
     A.sucheOffen = true;
     try {
+      const generation = A.suchGeneration;
       const antwort = await suchen(videoBild(640), false);
-      if (A.modus !== "live" || !A.auto) return;
+      if (A.modus !== "live" || !A.auto || generation !== A.suchGeneration) return;
       const t = antwort.treffer;
-      if (t && trefferUebernehmen(t, true)) buehnenHinweis(`Zählwerk erkannt: ${A.schab.schwarz + A.schab.rot} Rollen. Ruhig halten und auslösen.`);
-      else if (!t) buehnenHinweis("Zählwerk wird gesucht … näher heran, gerade von vorn, ohne Spiegelung.");
+      if (t && A.sperre && !t.nahSperre) {
+        // eine andere Zahlenreihe: erst nach längerem Verlust der verfolgten Reihe umschwenken
+        if (++A.fehlgriffe < 8) { buehnenHinweis("Zählwerk kurz verloren, Handy ruhig halten."); return; }
+        A.sperre = null; A.stabil = 0; A.letzterTreffer = null;
+      }
+      if (t && trefferUebernehmen(t, true)) {
+        A.sperre = { cx: t.cx, cy: t.cy, bw: t.bw, hoehe: t.hoehe };
+        A.fehlgriffe = 0; A.fokus = null;
+        if (A.zeigerSetzen == null) buehnenHinweis(`Zählwerk erkannt: ${A.schab.schwarz + A.schab.rot} Rollen. Falsche Reihe? Aufs Zählwerk tippen.`);
+      } else if (!t) {
+        if (A.sperre && ++A.fehlgriffe >= 8) A.sperre = null;
+        if (A.zeigerSetzen == null) buehnenHinweis("Zählwerk wird gesucht … näher heran, gerade von vorn, ohne Spiegelung.");
+      }
     } finally { A.sucheOffen = false; }
   }, 450);
 }
@@ -623,8 +641,9 @@ async function standbildSuchen() {
   const q = A.bild.quelle, f = Math.min(1, 1000 / Math.max(q.width, q.height));
   const c = h("canvas"); c.width = Math.round(q.width * f); c.height = Math.round(q.height * f);
   const g = c.getContext("2d", { willReadFrequently: true }); g.imageSmoothingQuality = "high"; g.drawImage(q, 0, 0, c.width, c.height);
+  const generation = ++A.suchGeneration;
   const antwort = await suchen(c, true);
-  if (!A.bild) return;
+  if (!A.bild || generation !== A.suchGeneration) return;
   if (antwort.treffer) trefferUebernehmen(antwort.treffer, false);
   else meldung("Keine Ziffernreihe gefunden. Rahmen bitte von Hand auf die Rollen ziehen.");
   erkennen();
@@ -745,12 +764,14 @@ leinwand.addEventListener("pointerdown", e => {
     return;
   }
   if (zeigerAktiv.size > 1) return;
-  zug = { ...treffer(q), letzter: q, geaendert: false };
+  zug = { ...treffer(q), letzter: q, start: q, zeit: performance.now(), bewegt: false, geaendert: false };
 });
 leinwand.addEventListener("pointermove", e => {
   if (!zeigerAktiv.has(e.pointerId) || !zug) return;
   const q = punkt(e);
   zeigerAktiv.set(e.pointerId, q);
+  // kleines Zittern beim Antippen zählt nicht als Ziehen
+  if (!zug.bewegt && zug.art !== "kneifen") { if (Math.hypot(q.x - zug.start.x, q.y - zug.start.y) < 8) return; zug.bewegt = true; }
   if (zug.art === "kneifen") {
     const [a, b] = [...zeigerAktiv.values()];
     if (!b) return;
@@ -786,6 +807,7 @@ leinwand.addEventListener("pointermove", e => {
 function zugEnde(e) {
   zeigerAktiv.delete(e.pointerId);
   if (zeigerAktiv.size) return;
+  if (zug && zug.art !== "kneifen" && !zug.bewegt && performance.now() - zug.zeit < 500) beiTipp(zug.start);
   if (zug?.geaendert && A.modus === "bild") erkennen();
   zug = null;
 }
@@ -828,13 +850,48 @@ $("schablone").addEventListener("click", e => {
   if (feld === "schwarz") { sb.schwarz = begrenze(sb.schwarz + schritt, 1, 9); A.zaehlFest = true; }
   if (feld === "rot") { sb.rot = begrenze(sb.rot + schritt, 0, 4); A.zaehlFest = true; }
   if (feld === "zeiger") {
-    if (schritt > 0 && sb.zeiger.length < 4) { const i = sb.zeiger.length; sb.zeiger.push({ x: 0.3 - 0.2 * i, y: sb.hoehe / 2 + 0.2, r: 0.08 }); }
-    if (schritt < 0) sb.zeiger.pop();
+    if (schritt > 0 && sb.zeiger.length < 4) {
+      const i = sb.zeiger.length;
+      sb.zeiger.push({ x: 0.3 - 0.2 * i, y: sb.hoehe / 2 + 0.2, r: begrenze(0.85 * sb.hoehe, 0.03, 0.6) });
+      A.zeigerSetzen = i;
+    }
+    if (schritt < 0) { sb.zeiger.pop(); if (A.zeigerSetzen != null && A.zeigerSetzen >= sb.zeiger.length) A.zeigerSetzen = null; }
+    zeigerHinweis();
   }
   schabloneAnzeigen(); zeichneBuehne();
   if (A.bild) erkennen();
 });
 $("schablone").addEventListener("toggle", zeichneBuehne);
+$("s-zeiger-tippen").addEventListener("click", () => {
+  if (!A.schab.zeiger.length) { meldung("Erst mit „+“ die Zahl der Zeigerrädchen einstellen."); return; }
+  A.zeigerSetzen = 0; zeigerHinweis();
+});
+function zeigerHinweis() {
+  const i = A.zeigerSetzen;
+  if (i == null) { buehnenHinweis(A.schab.zeiger.length ? "Zeigerrädchen gesetzt. Sie wandern mit dem Rahmen mit." : ""); return; }
+  buehnenHinweis(`Tippe im Bild auf die Mitte des Zeigerrads ${ZEIGER_NAMEN[i]}.`);
+}
+
+/* Antippen: setzt das nächste Zeigerrad oder sagt der Automatik, wo das Zählwerk ist */
+function beiTipp(q) {
+  const p = zuBild(q, abbildung()), { W, H } = bildMasse();
+  const i = A.zeigerSetzen;
+  if (i != null && A.schab.zeiger[i]) {
+    const geo = geometrie(), l = geo.lokal(p), z = A.schab.zeiger[i];
+    z.x = l.x / geo.w; z.y = l.y / geo.w; z.r = begrenze(0.85 * A.schab.hoehe, 0.03, 0.6);
+    A.zeigerSetzen = i + 1 < A.schab.zeiger.length ? i + 1 : null;
+    zeigerHinweis(); schabloneAnzeigen(true); zeichneBuehne();
+    if (A.bild) erkennen();
+    return;
+  }
+  if (A.modus === "leer") return;
+  if (!A.auto) { A.auto = true; autoKnopf(); }
+  A.suchGeneration++;   // Ergebnisse von Suchläufen vor dem Tippen verwerfen
+  A.fokus = { x: p.x / W, y: p.y / H };
+  A.sperre = null; A.stabil = 0; A.letzterTreffer = null; A.fehlgriffe = 0;
+  if (A.modus === "live") buehnenHinweis("Suche die Zahlenreihe an der angetippten Stelle …");
+  else standbildSuchen();
+}
 $("s-hoehe").addEventListener("input", e => { A.schab.hoehe = Number(e.target.value); zeichneBuehne(); });
 $("s-winkel").addEventListener("input", e => { A.schab.lage.winkel = Number(e.target.value); schabloneAnzeigen(true); zeichneBuehne(); });
 for (const id of ["s-hoehe", "s-winkel"]) $(id).addEventListener("change", () => { if (A.bild) erkennen(); });
